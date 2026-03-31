@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>SabSab - Monde d'Amour</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Noto+Sans+JP:wght@400;700;900&family=Zen+Kurenaido&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="screen-home" class="screen active">
+    <div class="anime-bg"></div>
+    <header class="home-header manga-panel">
+      <div class="home-header-actions">
+        <button id="btn-sound-menu" class="secondary-cta" type="button" aria-expanded="false" aria-controls="sound-panel">Son</button>
+      </div>
+      <p class="kicker">Univers pour mon amoureuse</p>
+      <h1>Le Royaume de Sabrina</h1>
+      <p>Un royaume, mille surprises.</p>
+
+    </header>
+
+    <main class="home-main">
+      <section class="home-grid">
+        <button id="btn-start-quiz" class="big-cta">Quiz</button>
+        <button id="btn-start-krill" class="big-cta disabled-cta">En construction</button>
+        <button class="big-cta disabled-cta">En construction</button>
+        <button class="big-cta disabled-cta">En construction</button>
+      </section>
+    </main>
+
+    <div id="candles-layer" aria-label="Bougies interactives"></div>
+    <p id="candles-status" class="candles-status" aria-live="polite"></p>
+  </div>
+
+  <div id="screen-game" class="screen">
+    <div class="eden-bg"></div>
+    <header class="game-header manga-panel dark">
+      <div class="game-header-actions">
+        <button id="btn-game-home" class="secondary-cta" type="button">Retour au menu</button>
+        <button id="btn-sound-menu-game" class="secondary-cta" type="button">Son</button>
+      </div>
+      <h2>Eden - Jeu des Krill</h2>
+      <p>Survis aux krill et ramasse 20 bougies oranges.</p>
+      <div class="game-stats">
+        <span id="krill-candles-count">Bougies: 0 / 20</span>
+      </div>
+    </header>
+
+    <div id="game-arena" class="game-arena" aria-label="Arene du jeu des krill">
+      <img id="player-avatar" class="avatar" alt="Avatar Skykid" />
+    </div>
+
+    <div id="game-over" class="overlay-card" hidden>
+      <img id="game-over-img" alt="Skykid mort" />
+      <h3>GAME OVER</h3>
+      <button id="btn-restart-game" class="danger-btn">Recommencer</button>
+    </div>
+
+    <div id="game-win" class="overlay-card" hidden>
+      <img id="game-win-img" alt="Recompense krill" />
+      <h3 id="game-win-title">Victoire</h3>
+      <p id="game-win-text"></p>
+      <div class="game-win-actions">
+        <button id="btn-win-restart" class="big-cta">Recommencer</button>
+        <button id="btn-win-home" class="secondary-cta">Retour au menu principal</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="game-intro" class="dialog" hidden>
+    <div class="dialog-card manga-panel dark-card">
+      <h3>Instructions</h3>
+      <p>Deplace ton Skykid pour eviter les krill et recuperer 20 bougies oranges.</p>
+      <p>Glisse dans l'arene, sans toucher ces juifs de krills.</p>
+      <button id="btn-game-intro-ok" class="big-cta">OK</button>
+    </div>
+  </div>
+
+  <div id="game-countdown" class="dialog countdown-dialog" hidden>
+    <div class="dialog-card manga-panel dark-card countdown-card">
+      <p>Le vol commence dans</p>
+      <h3 id="countdown-value">3</h3>
+    </div>
+  </div>
+
+  <div id="screen-quiz" class="screen">
+    <div class="quiz-deco"></div>
+    <header class="quiz-top">
+      <div class="quiz-actions-top">
+        <button id="btn-quiz-home" class="secondary-cta">Retour au menu</button>
+        <button id="btn-sound-menu-quiz" class="secondary-cta" type="button">Son</button>
+      </div>
+      <div class="progress-shell">
+        <div id="progress-fill" class="progress-fill"></div>
+      </div>
+      <p id="progress-text" class="progress-text">Question 1 / 25</p>
+    </header>
+
+    <main class="quiz-main manga-panel">
+      <h2 id="question-text"></h2>
+      <div id="options" class="options"></div>
+
+      <section id="feedback" class="feedback" hidden>
+        <img id="feedback-image" alt="Reaction" />
+        <p id="feedback-quote"></p>
+        <button id="btn-next" class="big-cta">Continuer</button>
+      </section>
+    </main>
+  </div>
+
+  <section id="ZONE_JEUX_FUTURS" class="zone-futurs manga-panel" hidden>
+    <h3>ZONE_JEUX_FUTURS</h3>
+    <p>Zone reservee pour les futurs mini-jeux.</p>
+  </section>
+
+  <div id="fade-overlay" class="fade-overlay" hidden></div>
+
+  <div id="special-confirm" class="dialog" hidden>
+    <div class="dialog-card manga-panel">
+      <h3>T'est sur ??</h3>
+      <p>Sabrinaaa fait attention !!</p>
+      <div class="dialog-actions">
+        <button id="btn-change-answer" class="big-cta">Je change ma réponse</button>
+        <button id="btn-confirm-chaos" class="danger-btn">Oui je suis sur</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="chaos-overlay" class="dialog" hidden>
+    <div class="dialog-card manga-panel chaos-card">
+      <h3>Alerte ta brisé mon coeur</h3>
+      <p>Repare mon coeur en cliquant sur "Je m'excuse".</p>
+      <button id="btn-apology" class="danger-btn apology-btn">Je m'excuse</button>
+    </div>
+  </div>
+
+  <div id="defeat-overlay" class="dialog" hidden>
+    <div class="dialog-card manga-panel defeat-card">
+      <h3>Tu m'a trahis</h3>
+      <p>Je t'accorde une nouvelle chance.</p>
+      <button id="btn-defeat-restart" class="danger-btn">Je m'excuse et je recommence</button>
+    </div>
+  </div>
+
+  <div id="mid-overlay" class="dialog" hidden>
+    <div class="dialog-card manga-panel">
+      <h3>Milieu du questionnaire</h3>
+      <img id="mid-image" alt="Milieu du questionnaire" />
+      <button id="btn-mid-continue" class="big-cta">Continuer</button>
+    </div>
+  </div>
+
+  <div id="final-overlay" class="dialog" hidden>
+    <div class="dialog-card manga-panel">
+      <h3>Fin du questionnaire</h3>
+      <img id="final-image" alt="Image finale" />
+      <p>Tu es mon univers.</p>
+      <button id="btn-final-home" class="secondary-cta">Retour au menu principal</button>
+      <button id="btn-restart-quiz" class="big-cta">Rejouer le quiz</button>
+    </div>
+  </div>
+
+  <div id="sound-panel" class="sound-panel" hidden>
+    <div class="sound-panel-header">Son</div>
+    <div class="sound-row">
+      <label for="volume-music">🎵 Musique</label>
+      <input id="volume-music" type="range" min="0" max="1" step="0.01" value="0.7" class="vol-slider" />
+    </div>
+    <div class="sound-row">
+      <label for="volume-sfx">🔊 Sons</label>
+      <input id="volume-sfx" type="range" min="0" max="1" step="0.01" value="0.8" class="vol-slider" />
+    </div>
+    <div class="sound-library">
+      <label for="music-select">Piste</label>
+      <select id="music-select"></select>
+      <div class="music-progress-wrap">
+        <span id="music-current-time" class="music-time">0:00</span>
+        <input id="music-progress" type="range" min="0" max="100" value="0" step="0.1" class="vol-slider" />
+        <span id="music-duration" class="music-time">0:00</span>
+      </div>
+      <button id="btn-play-music" class="big-cta" type="button">▶ Play</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
