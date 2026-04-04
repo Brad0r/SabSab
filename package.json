@@ -1,0 +1,10 @@
+{
+  "name": "sabsab",
+  "private": true,
+  "scripts": {
+    "sync:music": "node sync-music-manifest.js",
+    "dev": "node sync-music-manifest.js && node dev-server.js",
+    "github:setup": "powershell -ExecutionPolicy Bypass -File ./setup-github.ps1",
+    "publish:update": "node sync-music-manifest.js && powershell -ExecutionPolicy Bypass -File ./publish-update.ps1"
+  }
+}
