@@ -261,8 +261,7 @@ const el = {
 
   candlesLayer: document.getElementById("candles-layer"),
   candlesStatus: document.getElementById("candles-status"),
-  homeHeader: document.querySelector(".home-header"),
-  homeMain: document.querySelector(".home-main"),
+  homeActionTargets: Array.from(document.querySelectorAll("#screen-home .home-grid button, #screen-home .header-quick-actions > *")),
   btnStartQuiz: document.getElementById("btn-start-quiz"),
   btnStartKrill: document.getElementById("btn-start-krill"),
   btnStartMusic: document.getElementById("btn-start-music"),
@@ -1863,12 +1862,13 @@ function setupHome() {
   const usedCandleSpots = [];
   const screenRect = el.screenHome?.getBoundingClientRect();
   const compactLayout = window.innerWidth <= 760;
-  const blockedZones = [el.homeHeader, el.homeMain]
+  const blockedZones = (el.homeActionTargets || [])
     .filter(Boolean)
-    .map((section) => {
-      const rect = section.getBoundingClientRect();
-      const paddingX = compactLayout ? 16 : 24;
-      const paddingY = compactLayout ? 20 : 28;
+    .map((target) => target.getBoundingClientRect())
+    .filter((rect) => rect.width > 0 && rect.height > 0 && screenRect?.width && screenRect?.height)
+    .map((rect) => {
+      const paddingX = compactLayout ? 14 : 18;
+      const paddingY = compactLayout ? 12 : 16;
 
       return {
         left: ((rect.left - screenRect.left - paddingX) / screenRect.width) * 100,
@@ -1879,25 +1879,17 @@ function setupHome() {
     });
 
   function isInNoCandleZone(x, y) {
-    const inBlockedSection = blockedZones.some((zone) => (
+    return blockedZones.some((zone) => (
       x > zone.left && x < zone.right && y > zone.top && y < zone.bottom
     ));
-
-    if (inBlockedSection) return true;
-
-    if (compactLayout && x > 28 && x < 72 && y > 74) {
-      return true;
-    }
-
-    return false;
   }
 
   function getSafeCandleSpot() {
-    const minDistance = compactLayout ? 12.5 : 10.5;
+    const minDistance = compactLayout ? 12 : 10.5;
 
     for (let tries = 0; tries < 120; tries += 1) {
       const x = 4 + Math.random() * 92;
-      const y = 6 + Math.random() * 88;
+      const y = compactLayout ? 8 + Math.random() * 84 : 6 + Math.random() * 88;
       if (isInNoCandleZone(x, y)) continue;
       const tooClose = usedCandleSpots.some((p) => Math.hypot(p.x - x, p.y - y) < minDistance);
       if (tooClose) continue;
@@ -1905,9 +1897,22 @@ function setupHome() {
       return { x, y };
     }
 
-    const fallback = compactLayout
-      ? { x: Math.random() < 0.5 ? 7 : 89, y: 78 + Math.random() * 12 }
-      : { x: 6 + Math.random() * 88, y: 12 + Math.random() * 80 };
+    const fallbackOptions = compactLayout
+      ? [
+        { x: 8, y: 18 },
+        { x: 92, y: 18 },
+        { x: 8, y: 84 },
+        { x: 92, y: 84 },
+      ]
+      : [
+        { x: 8, y: 16 },
+        { x: 92, y: 16 },
+        { x: 8, y: 86 },
+        { x: 92, y: 86 },
+      ];
+
+    const fallback = fallbackOptions.find((spot) => !isInNoCandleZone(spot.x, spot.y))
+      || fallbackOptions[0];
 
     usedCandleSpots.push(fallback);
     return fallback;

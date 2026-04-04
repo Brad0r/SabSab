@@ -323,6 +323,11 @@ body[data-theme="dark"] .playlist-card.active {
   text-align: left;
 }
 
+.sound-panel[hidden],
+.online-panel[hidden] {
+  display: none !important;
+}
+
 .sound-panel-header {
   font-family: "Bangers", cursive;
   font-size: 1.1rem;
