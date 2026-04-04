@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: sabsab-live
+    env: node
+    plan: free
+    autoDeploy: true
+    buildCommand: npm install
+    startCommand: npm run start:presence
+    envVars:
+      - key: ALLOWED_ORIGIN
+        value: https://brad0r.github.io

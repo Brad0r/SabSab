@@ -111,6 +111,9 @@ const QUOTES_BAD = [
 const STORAGE_KEYS = {
   krillUnlocked: "sabsab.krillUnlocked",
   playlists: "sabsab.playlists",
+  theme: "sabsab.theme",
+  nickname: "sabsab.nickname",
+  clientId: "sabsab.clientId",
 };
 
 const questions = [
@@ -258,6 +261,8 @@ const el = {
 
   candlesLayer: document.getElementById("candles-layer"),
   candlesStatus: document.getElementById("candles-status"),
+  homeHeader: document.querySelector(".home-header"),
+  homeMain: document.querySelector(".home-main"),
   btnStartQuiz: document.getElementById("btn-start-quiz"),
   btnStartKrill: document.getElementById("btn-start-krill"),
   btnStartMusic: document.getElementById("btn-start-music"),
@@ -265,7 +270,17 @@ const el = {
   btnSoundMenuGame: document.getElementById("btn-sound-menu-game"),
   btnSoundMenuQuiz: document.getElementById("btn-sound-menu-quiz"),
   btnSoundMenuMusic: document.getElementById("btn-sound-menu-music"),
+  themeToggles: Array.from(document.querySelectorAll("[data-theme-toggle]")),
+  onlineTriggers: Array.from(document.querySelectorAll("[data-online-trigger]")),
   soundPanel: document.getElementById("sound-panel"),
+  onlinePanel: document.getElementById("online-panel"),
+  onlineStatus: document.getElementById("online-status"),
+  onlineCount: document.getElementById("online-count"),
+  onlineUsersList: document.getElementById("online-users-list"),
+  btnChangeNickname: document.getElementById("btn-change-nickname"),
+  nicknameModal: document.getElementById("nickname-modal"),
+  nicknameInput: document.getElementById("nickname-input"),
+  btnSaveNickname: document.getElementById("btn-save-nickname"),
   btnToggleMute: document.getElementById("btn-toggle-mute"),
   volumeMusic: document.getElementById("volume-music"),
   volumeSfx: document.getElementById("volume-sfx"),
@@ -363,7 +378,82 @@ const PLAYER_MODES = {
   shuffle: "shuffle",
 };
 
+function readSavedTheme() {
+  try {
+    return localStorage.getItem(STORAGE_KEYS.theme) === "dark" ? "dark" : "light";
+  } catch {
+    return "light";
+  }
+}
+
+function sanitizeNickname(value) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 20);
+}
+
+function readSavedNickname() {
+  try {
+    return sanitizeNickname(localStorage.getItem(STORAGE_KEYS.nickname));
+  } catch {
+    return "";
+  }
+}
+
+function saveNicknamePreference(nickname) {
+  try {
+    localStorage.setItem(STORAGE_KEYS.nickname, nickname);
+  } catch {
+    // ignore storage errors on private browsing or restricted devices
+  }
+}
+
+function readOrCreateClientId() {
+  try {
+    const existing = localStorage.getItem(STORAGE_KEYS.clientId);
+    if (existing) return existing;
+
+    const generatedId = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `client-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+    localStorage.setItem(STORAGE_KEYS.clientId, generatedId);
+    return generatedId;
+  } catch {
+    return `client-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+}
+
+function saveThemePreference() {
+  try {
+    localStorage.setItem(STORAGE_KEYS.theme, state.theme);
+  } catch {
+    // ignore storage errors on private browsing or restricted devices
+  }
+}
+
+function getPresenceBaseUrl() {
+  const configuredUrl = typeof window !== "undefined" && typeof window.SABSAB_PRESENCE_URL === "string"
+    ? window.SABSAB_PRESENCE_URL.trim()
+    : "";
+
+  if (configuredUrl) {
+    return configuredUrl.replace(/\/+$/, "");
+  }
+
+  return window.location.origin;
+}
+
 const state = {
+  theme: readSavedTheme(),
+  presence: {
+    nickname: readSavedNickname(),
+    clientId: readOrCreateClientId(),
+    users: [],
+    connected: false,
+    stream: null,
+  },
   home: {
     total: 7,
     lit: 0,
@@ -457,6 +547,14 @@ function readSavedPlaylists() {
 function savePlaylists() {
   try {
     localStorage.setItem(STORAGE_KEYS.playlists, JSON.stringify(state.audio.playlists));
+  } catch {
+    // ignore storage errors on private browsing or restricted devices
+  }
+}
+
+function saveThemePreference() {
+  try {
+    localStorage.setItem(STORAGE_KEYS.theme, state.theme);
   } catch {
     // ignore storage errors on private browsing or restricted devices
   }
@@ -585,6 +683,222 @@ function getPlayableQueue() {
 function updatePlaylistStatus(message) {
   if (!el.playlistStatus) return;
   el.playlistStatus.textContent = message;
+}
+
+function applyTheme(themeName = state.theme) {
+  const nextTheme = themeName === "dark" ? "dark" : "light";
+  state.theme = nextTheme;
+  document.body.dataset.theme = nextTheme;
+
+  if (Array.isArray(el.themeToggles)) {
+    const isDark = nextTheme === "dark";
+    el.themeToggles.forEach((toggle) => {
+      toggle.checked = isDark;
+      toggle.setAttribute("aria-checked", String(isDark));
+    });
+  }
+}
+
+function toggleTheme(forceTheme) {
+  const nextTheme = forceTheme === "dark" || forceTheme === "light"
+    ? forceTheme
+    : state.theme === "dark"
+      ? "light"
+      : "dark";
+
+  applyTheme(nextTheme);
+  saveThemePreference();
+}
+
+function updateOnlinePanel() {
+  if (!el.onlineStatus || !el.onlineCount || !el.onlineUsersList) return;
+
+  const uniqueUsers = [...new Set((state.presence.users || [])
+    .map(sanitizeNickname)
+    .filter(Boolean))];
+
+  const count = uniqueUsers.length;
+  el.onlineCount.textContent = `${count} connecté${count > 1 ? "s" : ""}`;
+
+  if (!state.presence.nickname) {
+    el.onlineStatus.textContent = "Choisis ton pseudo pour apparaître en direct.";
+  } else if (state.presence.connected) {
+    el.onlineStatus.textContent = `Connecté en direct en tant que ${state.presence.nickname}.`;
+  } else {
+    el.onlineStatus.textContent = `Connexion en cours pour ${state.presence.nickname}...`;
+  }
+
+  el.onlineUsersList.innerHTML = "";
+
+  if (!uniqueUsers.length) {
+    const emptyItem = document.createElement("li");
+    emptyItem.className = "online-empty";
+    emptyItem.textContent = "Personne en ligne pour l'instant.";
+    el.onlineUsersList.appendChild(emptyItem);
+  } else {
+    uniqueUsers.forEach((userName) => {
+      const item = document.createElement("li");
+      item.className = "online-user-item";
+      if (userName === state.presence.nickname) {
+        item.classList.add("online-user-you");
+      }
+
+      const dot = document.createElement("span");
+      dot.className = "online-user-dot";
+
+      const name = document.createElement("span");
+      name.textContent = userName === state.presence.nickname ? `${userName} (toi)` : userName;
+
+      item.append(dot, name);
+      el.onlineUsersList.appendChild(item);
+    });
+  }
+
+  if (Array.isArray(el.onlineTriggers)) {
+    el.onlineTriggers.forEach((button) => {
+      button.classList.toggle("is-live", count > 0);
+      button.title = count > 0 ? `${count} personne(s) en ligne` : "Voir les personnes connectées";
+    });
+  }
+}
+
+function openNicknameModal(prefillCurrent = true) {
+  if (!el.nicknameModal || !el.nicknameInput) return;
+  el.nicknameModal.hidden = false;
+  el.nicknameInput.value = prefillCurrent ? state.presence.nickname : "";
+  requestAnimationFrame(() => {
+    el.nicknameInput.focus();
+    el.nicknameInput.select();
+  });
+}
+
+function closeNicknameModal() {
+  if (!el.nicknameModal) return;
+  el.nicknameModal.hidden = true;
+}
+
+function saveNicknameAndConnect() {
+  if (!el.nicknameInput) return;
+  const nickname = sanitizeNickname(el.nicknameInput.value);
+  if (!nickname) {
+    el.nicknameInput.focus();
+    return;
+  }
+
+  state.presence.nickname = nickname;
+  saveNicknamePreference(nickname);
+  closeNicknameModal();
+  connectPresenceStream();
+  updateOnlinePanel();
+}
+
+function connectPresenceStream() {
+  if (!state.presence.nickname || typeof EventSource === "undefined") {
+    state.presence.connected = false;
+    updateOnlinePanel();
+    return;
+  }
+
+  if (state.presence.stream) {
+    state.presence.stream.close();
+  }
+
+  const presenceBaseUrl = getPresenceBaseUrl();
+  const presenceUrl = `${presenceBaseUrl}/__presence?name=${encodeURIComponent(state.presence.nickname)}&clientId=${encodeURIComponent(state.presence.clientId)}`;
+  const stream = new EventSource(presenceUrl);
+  state.presence.stream = stream;
+
+  stream.onopen = () => {
+    state.presence.connected = true;
+    updateOnlinePanel();
+  };
+
+  stream.onmessage = (event) => {
+    try {
+      const payload = JSON.parse(event.data);
+      if (payload.type !== "presence") return;
+      state.presence.users = Array.isArray(payload.users) ? payload.users : [];
+      state.presence.connected = true;
+      updateOnlinePanel();
+    } catch {
+      // ignore malformed presence payloads
+    }
+  };
+
+  stream.onerror = () => {
+    state.presence.connected = false;
+    updateOnlinePanel();
+  };
+}
+
+function setupThemeToggles() {
+  if (!Array.isArray(el.themeToggles) || !el.themeToggles.length) return;
+  el.themeToggles.forEach((toggle) => {
+    toggle.checked = state.theme === "dark";
+    toggle.addEventListener("change", () => {
+      toggleTheme(toggle.checked ? "dark" : "light");
+    });
+  });
+}
+
+function setupPresence() {
+  if (Array.isArray(el.onlineTriggers)) {
+    el.onlineTriggers.forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (!state.presence.nickname) {
+          openNicknameModal(false);
+          return;
+        }
+
+        if (el.onlinePanel) {
+          el.onlinePanel.hidden = !el.onlinePanel.hidden;
+        }
+        if (el.soundPanel && !el.onlinePanel.hidden) {
+          el.soundPanel.hidden = true;
+        }
+        updateOnlinePanel();
+      });
+    });
+  }
+
+  if (el.btnChangeNickname) {
+    el.btnChangeNickname.addEventListener("click", (event) => {
+      event.preventDefault();
+      if (el.onlinePanel) {
+        el.onlinePanel.hidden = true;
+      }
+      openNicknameModal(true);
+    });
+  }
+
+  if (el.btnSaveNickname) {
+    el.btnSaveNickname.addEventListener("click", saveNicknameAndConnect);
+  }
+
+  if (el.nicknameInput) {
+    el.nicknameInput.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      saveNicknameAndConnect();
+    });
+  }
+
+  updateOnlinePanel();
+
+  if (state.presence.nickname) {
+    connectPresenceStream();
+  } else {
+    openNicknameModal(false);
+  }
+
+  window.addEventListener("beforeunload", () => {
+    if (state.presence.stream) {
+      state.presence.stream.close();
+    }
+  });
 }
 
 function updateMuteButton() {
@@ -1294,6 +1608,9 @@ function setupSoundPanel() {
       event.preventDefault();
       event.stopPropagation();
       el.soundPanel.hidden = !el.soundPanel.hidden;
+      if (!el.soundPanel.hidden && el.onlinePanel) {
+        el.onlinePanel.hidden = true;
+      }
     });
   });
 
@@ -1478,6 +1795,12 @@ function setupMusicScreen() {
     if (event.key !== "Escape") return;
     closeCreatePlaylistModal();
     closePlaylistTrackPicker();
+    if (el.onlinePanel) {
+      el.onlinePanel.hidden = true;
+    }
+    if (state.presence.nickname) {
+      closeNicknameModal();
+    }
   });
 
   el.playlistsColumn.addEventListener("click", (event) => {
@@ -1538,23 +1861,54 @@ function setupHome() {
   refreshMusicUI();
   el.candlesLayer.innerHTML = "";
   const usedCandleSpots = [];
+  const screenRect = el.screenHome?.getBoundingClientRect();
+  const compactLayout = window.innerWidth <= 760;
+  const blockedZones = [el.homeHeader, el.homeMain]
+    .filter(Boolean)
+    .map((section) => {
+      const rect = section.getBoundingClientRect();
+      const paddingX = compactLayout ? 16 : 24;
+      const paddingY = compactLayout ? 20 : 28;
+
+      return {
+        left: ((rect.left - screenRect.left - paddingX) / screenRect.width) * 100,
+        right: ((rect.right - screenRect.left + paddingX) / screenRect.width) * 100,
+        top: ((rect.top - screenRect.top - paddingY) / screenRect.height) * 100,
+        bottom: ((rect.bottom - screenRect.top + paddingY) / screenRect.height) * 100,
+      };
+    });
 
   function isInNoCandleZone(x, y) {
-    return x > 10 && x < 90 && y > 8 && y < 72;
+    const inBlockedSection = blockedZones.some((zone) => (
+      x > zone.left && x < zone.right && y > zone.top && y < zone.bottom
+    ));
+
+    if (inBlockedSection) return true;
+
+    if (compactLayout && x > 28 && x < 72 && y > 74) {
+      return true;
+    }
+
+    return false;
   }
 
   function getSafeCandleSpot() {
-    for (let tries = 0; tries < 80; tries += 1) {
+    const minDistance = compactLayout ? 12.5 : 10.5;
+
+    for (let tries = 0; tries < 120; tries += 1) {
       const x = 4 + Math.random() * 92;
-      const y = 10 + Math.random() * 82;
+      const y = 6 + Math.random() * 88;
       if (isInNoCandleZone(x, y)) continue;
-      const tooClose = usedCandleSpots.some((p) => Math.hypot(p.x - x, p.y - y) < 10.5);
+      const tooClose = usedCandleSpots.some((p) => Math.hypot(p.x - x, p.y - y) < minDistance);
       if (tooClose) continue;
       usedCandleSpots.push({ x, y });
       return { x, y };
     }
 
-    const fallback = { x: 6 + Math.random() * 88, y: 12 + Math.random() * 80 };
+    const fallback = compactLayout
+      ? { x: Math.random() < 0.5 ? 7 : 89, y: 78 + Math.random() * 12 }
+      : { x: 6 + Math.random() * 88, y: 12 + Math.random() * 80 };
+
     usedCandleSpots.push(fallback);
     return fallback;
   }
@@ -1595,7 +1949,9 @@ function setupHome() {
     fadeTo(startEdenGame);
   });
 
+  setupThemeToggles();
   setupSoundPanel();
+  setupPresence();
   setupMusicScreen();
 
   document.querySelectorAll(".disabled-cta").forEach((btn) => {
@@ -2183,6 +2539,9 @@ function returnToMenu() {
   el.playlistModal.hidden = true;
   el.playlistAddModal.hidden = true;
   el.soundPanel.hidden = true;
+  if (el.onlinePanel) {
+    el.onlinePanel.hidden = true;
+  }
   document.body.classList.remove("preshake", "chaos-mode");
   hideFeedback();
   setActiveScreen("home");
@@ -2248,6 +2607,7 @@ el.btnRestartQuiz.addEventListener("click", () => {
 });
 
 loadMusicLibrary().finally(() => {
+  applyTheme(state.theme);
   setupHome();
   setActiveScreen("home");
 });

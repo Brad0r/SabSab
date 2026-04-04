@@ -14,7 +14,17 @@
     <div class="anime-bg"></div>
     <header class="home-header manga-panel">
       <div class="home-header-actions">
-        <button id="btn-sound-menu" class="secondary-cta" type="button" aria-expanded="false" aria-controls="sound-panel">Son</button>
+        <div class="header-quick-actions">
+          <button id="btn-sound-menu" class="secondary-cta" type="button" aria-expanded="false" aria-controls="sound-panel">Son</button>
+          <label class="theme-toggle-inline" aria-label="Mode sombre">
+            <span class="theme-inline-icon" aria-hidden="true">🌙</span>
+            <span class="toggle-switch toggle-switch-compact">
+              <input data-theme-toggle type="checkbox" />
+              <span class="toggle-slider"></span>
+            </span>
+          </label>
+          <button class="secondary-cta online-cta" type="button" data-online-trigger aria-label="Voir les personnes connectées">🟢</button>
+        </div>
       </div>
       <p class="kicker">Univers pour mon amoureuse</p>
       <h1>Le Royaume de Sabrina</h1>
@@ -40,7 +50,17 @@
     <header class="game-header manga-panel dark">
       <div class="game-header-actions">
         <button id="btn-game-home" class="secondary-cta" type="button">Retour au menu</button>
-        <button id="btn-sound-menu-game" class="secondary-cta" type="button">Son</button>
+        <div class="header-quick-actions">
+          <button id="btn-sound-menu-game" class="secondary-cta" type="button">Son</button>
+          <label class="theme-toggle-inline" aria-label="Mode sombre">
+            <span class="theme-inline-icon" aria-hidden="true">🌙</span>
+            <span class="toggle-switch toggle-switch-compact">
+              <input data-theme-toggle type="checkbox" />
+              <span class="toggle-slider"></span>
+            </span>
+          </label>
+          <button class="secondary-cta online-cta" type="button" data-online-trigger aria-label="Voir les personnes connectées">🟢</button>
+        </div>
       </div>
       <h2>Eden - Jeu des Krill</h2>
       <p>Survis aux krill et ramasse 20 bougies oranges.</p>
@@ -91,7 +111,17 @@
     <header class="quiz-top">
       <div class="quiz-actions-top">
         <button id="btn-quiz-home" class="secondary-cta" type="button">Retour au menu</button>
-        <button id="btn-sound-menu-quiz" class="secondary-cta" type="button">Son</button>
+        <div class="header-quick-actions">
+          <button id="btn-sound-menu-quiz" class="secondary-cta" type="button">Son</button>
+          <label class="theme-toggle-inline" aria-label="Mode sombre">
+            <span class="theme-inline-icon" aria-hidden="true">🌙</span>
+            <span class="toggle-switch toggle-switch-compact">
+              <input data-theme-toggle type="checkbox" />
+              <span class="toggle-slider"></span>
+            </span>
+          </label>
+          <button class="secondary-cta online-cta" type="button" data-online-trigger aria-label="Voir les personnes connectées">🟢</button>
+        </div>
       </div>
       <div class="progress-shell">
         <div id="progress-fill" class="progress-fill"></div>
@@ -116,7 +146,17 @@
     <header class="quiz-top">
       <div class="quiz-actions-top">
         <button id="btn-music-home" class="secondary-cta" type="button">Retour au menu</button>
-        <button id="btn-sound-menu-music" class="secondary-cta" type="button">Son</button>
+        <div class="header-quick-actions">
+          <button id="btn-sound-menu-music" class="secondary-cta" type="button">Son</button>
+          <label class="theme-toggle-inline" aria-label="Mode sombre">
+            <span class="theme-inline-icon" aria-hidden="true">🌙</span>
+            <span class="toggle-switch toggle-switch-compact">
+              <input data-theme-toggle type="checkbox" />
+              <span class="toggle-slider"></span>
+            </span>
+          </label>
+          <button class="secondary-cta online-cta" type="button" data-online-trigger aria-label="Voir les personnes connectées">🟢</button>
+        </div>
       </div>
     </header>
 
@@ -244,6 +284,25 @@
     </div>
   </div>
 
+  <div id="online-panel" class="sound-panel online-panel" hidden>
+    <div class="sound-panel-header">En direct</div>
+    <p id="online-status" class="sound-note">Connexion au salon...</p>
+    <p id="online-count" class="online-count">0 connecté</p>
+    <ul id="online-users-list" class="online-users-list"></ul>
+    <button id="btn-change-nickname" class="secondary-cta" type="button">Changer mon pseudo</button>
+  </div>
+
+  <div id="nickname-modal" class="dialog" hidden>
+    <div class="dialog-card manga-panel">
+      <h3>Choisis ton pseudo</h3>
+      <p>Il sera gardé sur ton appareil pour t'afficher dans la liste en direct.</p>
+      <input id="nickname-input" type="text" placeholder="Ton pseudo" maxlength="20" />
+      <div class="dialog-actions">
+        <button id="btn-save-nickname" class="big-cta" type="button">Valider</button>
+      </div>
+    </div>
+  </div>
+
   <div id="sound-panel" class="sound-panel" hidden>
     <div class="sound-panel-header">Son</div>
     <button id="btn-toggle-mute" class="secondary-cta mute-toggle" type="button">🔇 Mode muet : désactivé</button>
@@ -258,6 +317,15 @@
     <p class="sound-note">La musique ne démarre que depuis la page <strong>Musique</strong>.</p>
   </div>
 
+  <script>
+    window.SABSAB_PRESENCE_URL = (() => {
+      const host = window.location.hostname;
+      if (host === "localhost" || host === "127.0.0.1" || host.endsWith(".onrender.com")) {
+        return window.location.origin;
+      }
+      return "https://sabsab-live.onrender.com";
+    })();
+  </script>
   <script src="app.js"></script>
 </body>
 </html>

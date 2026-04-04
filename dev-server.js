@@ -5,7 +5,10 @@ const path = require('path');
 const PORT = Number(process.env.PORT) || 5500;
 const ROOT = __dirname;
 const LIVE_RELOAD_ROUTE = '/__events';
+const PRESENCE_ROUTE = '/__presence';
 const reloadClients = new Set();
+const presenceClients = new Set();
+const presenceUsers = new Map();
 const watchableExtensions = new Set(['.html', '.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.mp3', '.m4a', '.wav', '.ogg', '.mp4']);
 
 const MIME_TYPES = {
@@ -142,6 +145,69 @@ function broadcastReload(changedFile) {
   }
 }
 
+function broadcastPresence() {
+  const users = [...presenceUsers.values()]
+    .map((entry) => entry.name)
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+
+  const payload = `data: ${JSON.stringify({ type: 'presence', users })}\n\n`;
+  for (const client of presenceClients) {
+    client.write(payload);
+  }
+}
+
+function registerPresenceClient(req, res) {
+  const requestUrl = new URL(req.url || PRESENCE_ROUTE, `http://${req.headers.host || `localhost:${PORT}`}`);
+  const clientId = (requestUrl.searchParams.get('clientId') || '').trim();
+  const safeName = (requestUrl.searchParams.get('name') || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 20);
+
+  if (!clientId || !safeName) {
+    sendText(res, 400, 'Pseudo ou identifiant manquant.');
+    return;
+  }
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+  });
+  res.write('\n');
+
+  const previousEntry = presenceUsers.get(clientId) || { name: safeName, count: 0 };
+  presenceUsers.set(clientId, {
+    name: safeName,
+    count: previousEntry.count + 1,
+  });
+
+  presenceClients.add(res);
+  broadcastPresence();
+
+  req.on('close', () => {
+    presenceClients.delete(res);
+
+    const currentEntry = presenceUsers.get(clientId);
+    if (!currentEntry) {
+      broadcastPresence();
+      return;
+    }
+
+    if (currentEntry.count <= 1) {
+      presenceUsers.delete(clientId);
+    } else {
+      presenceUsers.set(clientId, {
+        ...currentEntry,
+        count: currentEntry.count - 1,
+      });
+    }
+
+    broadcastPresence();
+  });
+}
+
 function shouldTriggerReload(filename) {
   if (!filename) {
     return false;
@@ -157,6 +223,11 @@ function shouldTriggerReload(filename) {
 const server = http.createServer((req, res) => {
   if ((req.url || '').startsWith(LIVE_RELOAD_ROUTE)) {
     registerLiveReloadClient(req, res);
+    return;
+  }
+
+  if ((req.url || '').startsWith(PRESENCE_ROUTE)) {
+    registerPresenceClient(req, res);
     return;
   }
 

@@ -25,6 +25,138 @@ body {
 
 body {
   overflow-x: hidden;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+body[data-theme="dark"] {
+  --bg: #0d1524;
+  --ink: #eaf2ff;
+  --pink: #7ba9ff;
+  --hot: #6ebcff;
+  --red: #2f73f0;
+  --line: #8abbff;
+  --panel: #142038;
+  color-scheme: dark;
+}
+
+body[data-theme="dark"] .manga-panel {
+  background: linear-gradient(145deg, #1a2740 0%, #132038 58%, #0d172b 100%);
+  box-shadow: 0 12px 0 #0f4c87;
+}
+
+body[data-theme="dark"] .anime-bg {
+  background:
+    radial-gradient(circle at 20% 20%, rgba(90, 176, 255, 0.26), transparent 42%),
+    radial-gradient(circle at 80% 30%, rgba(62, 116, 225, 0.24), transparent 38%),
+    radial-gradient(circle at 50% 100%, rgba(21, 34, 56, 0.42), transparent 45%),
+    repeating-linear-gradient(125deg, rgba(186, 214, 255, 0.06), rgba(186, 214, 255, 0.06) 2px, transparent 2px, transparent 12px);
+}
+
+body[data-theme="dark"] .quiz-deco,
+body[data-theme="dark"] .music-bg {
+  background:
+    radial-gradient(circle at 12% 14%, rgba(102, 182, 255, 0.22), transparent 36%),
+    radial-gradient(circle at 88% 18%, rgba(76, 118, 255, 0.18), transparent 34%),
+    radial-gradient(circle at 50% 100%, rgba(17, 27, 44, 0.4), transparent 42%),
+    repeating-linear-gradient(135deg, rgba(186, 214, 255, 0.05), rgba(186, 214, 255, 0.05) 2px, transparent 2px, transparent 14px);
+}
+
+body[data-theme="dark"] .theme-toggle-inline,
+body[data-theme="dark"] .sound-panel,
+body[data-theme="dark"] .playlist-card,
+body[data-theme="dark"] .playlist-track-item,
+body[data-theme="dark"] .playlist-check-item,
+body[data-theme="dark"] .online-user-item,
+body[data-theme="dark"] .online-empty,
+body[data-theme="dark"] #music-select,
+body[data-theme="dark"] #playlist-select,
+body[data-theme="dark"] #playlist-track-list,
+body[data-theme="dark"] .playlist-creator input,
+body[data-theme="dark"] #playlist-modal-name,
+body[data-theme="dark"] #nickname-input,
+body[data-theme="dark"] .sound-library select {
+  background: rgba(16, 26, 44, 0.94);
+  color: var(--ink);
+}
+
+body[data-theme="dark"] .big-cta {
+  background: linear-gradient(180deg, #6ebcff 0%, #3b6df0 100%);
+  color: #eef6ff;
+  box-shadow: 0 8px 0 #173f97;
+}
+
+body[data-theme="dark"] .big-cta:hover,
+body[data-theme="dark"] .big-cta:focus-visible {
+  box-shadow: 0 10px 0 #173f97;
+}
+
+body[data-theme="dark"] .big-cta:active {
+  box-shadow: 0 3px 0 #173f97;
+}
+
+body[data-theme="dark"] .secondary-cta,
+body[data-theme="dark"] .icon-btn,
+body[data-theme="dark"] .playlist-collapse-btn,
+body[data-theme="dark"] .track-trash-btn,
+body[data-theme="dark"] .mode-chip {
+  background: #182844;
+  color: var(--ink);
+  box-shadow: 0 6px 0 #0f3874;
+}
+
+body[data-theme="dark"] .secondary-cta:active,
+body[data-theme="dark"] .icon-btn:active {
+  box-shadow: 0 2px 0 #0f3874;
+}
+
+body[data-theme="dark"] .progress-shell,
+body[data-theme="dark"] .music-progress-bar,
+body[data-theme="dark"] .toggle-slider,
+body[data-theme="dark"] .vol-slider {
+  background: #243654;
+}
+
+body[data-theme="dark"] .progress-fill,
+body[data-theme="dark"] .music-progress-fill,
+body[data-theme="dark"] .toggle-switch input:checked + .toggle-slider,
+body[data-theme="dark"] .vol-slider::-webkit-slider-thumb,
+body[data-theme="dark"] .vol-slider::-moz-range-thumb {
+  background: linear-gradient(90deg, #8fd2ff, #6394ff 68%, #3158d8);
+}
+
+body[data-theme="dark"] .music-progress-thumb {
+  background: #eef5ff;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+}
+
+body[data-theme="dark"] .sound-panel-header,
+body[data-theme="dark"] .music-source-badge {
+  color: #bfe0ff;
+}
+
+body[data-theme="dark"] .music-source-badge {
+  background: rgba(110, 188, 255, 0.18);
+}
+
+body[data-theme="dark"] #music-now-context,
+body[data-theme="dark"] .playlist-status,
+body[data-theme="dark"] .sound-note,
+body[data-theme="dark"] .music-time,
+body[data-theme="dark"] .empty-playlist-note {
+  color: #c8dcff;
+}
+
+body[data-theme="dark"] .playlist-card.active {
+  border-color: #6ebcff;
+  box-shadow: inset 0 0 0 2px rgba(110, 188, 255, 0.22);
+}
+
+.sound-row-theme {
+  justify-content: space-between;
+}
+
+.sound-row-theme label:first-child {
+  min-width: auto;
 }
 
 .screen {
@@ -98,16 +230,16 @@ body {
 #candles-layer,
 .candles-status {
   position: relative;
-  z-index: 2;
 }
 
 #candles-layer {
-  z-index: 6;
+  z-index: 1;
 }
 
 .home-header,
-.home-main {
-  z-index: 4;
+.home-main,
+.candles-status {
+  z-index: 8;
 }
 
 .home-header {
@@ -120,6 +252,54 @@ body {
   display: flex;
   justify-content: flex-end;
   margin-bottom: 8px;
+}
+
+.header-quick-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.theme-toggle-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 4px 10px;
+  border-radius: 999px;
+  border: 3px solid var(--line);
+  background: rgba(255, 248, 251, 0.92);
+  box-shadow: 0 6px 0 #cb8ea8;
+}
+
+.theme-inline-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.toggle-switch-compact {
+  width: 54px;
+  height: 30px;
+}
+
+.toggle-switch-compact .toggle-slider::before {
+  width: 16px;
+  height: 16px;
+  left: 5px;
+  top: 4px;
+}
+
+.toggle-switch-compact input:checked + .toggle-slider::before {
+  transform: translateX(21px);
+}
+
+.online-cta {
+  min-width: 58px;
+  padding-inline: 12px;
+}
+
+.online-cta.is-live {
+  color: #0f7d39;
 }
 
 .home-header h1 {
@@ -286,6 +466,62 @@ body {
   font-weight: 700;
   line-height: 1.45;
   color: #5b2a46;
+}
+
+.online-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.online-count {
+  margin: 0;
+  font-weight: 900;
+  color: var(--hot);
+}
+
+.online-users-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.online-user-item,
+.online-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 2px solid rgba(44, 17, 40, 0.12);
+  border-radius: 10px;
+  background: #fff8fb;
+  font-weight: 700;
+}
+
+.online-user-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #15b24a;
+  box-shadow: 0 0 0 4px rgba(21, 178, 74, 0.12);
+}
+
+.online-user-you {
+  border-color: rgba(21, 178, 74, 0.45);
+}
+
+#nickname-input {
+  width: 100%;
+  min-height: 52px;
+  border: 3px solid var(--line);
+  border-radius: 12px;
+  background: #fff8fb;
+  color: var(--ink);
+  padding: 10px 14px;
+  font: inherit;
+  font-weight: 700;
+  margin: 10px 0 14px;
 }
 
 .mute-toggle {
