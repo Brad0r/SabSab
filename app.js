@@ -678,6 +678,7 @@ const state = {
     messages: [],
     seenEventIds: [],
     canvasEvents: [],
+    lastClearByOwner: {},
     brushColor: "#ff4f7d",
     brushSize: 4,
     drawing: false,
@@ -1340,6 +1341,7 @@ async function connectPeerPresence() {
       }
 
       state.presence.users = getSortedPresenceUsers(nextUsers);
+      pruneInactiveMultiCanvasOwners(state.presence.users);
       rememberSeenNicknames([state.presence.nickname, ...state.presence.users.map((user) => user.name)]);
       state.presence.connected = isAnyProviderLive() || state.presence.users.length > 0;
       updateOnlinePanel();
@@ -1461,6 +1463,7 @@ function connectPresenceStream() {
       const payload = JSON.parse(event.data);
       if (payload.type !== "presence") return;
       state.presence.users = Array.isArray(payload.users) ? payload.users : [];
+      pruneInactiveMultiCanvasOwners(state.presence.users);
       const liveUsers = getSortedPresenceUsers(state.presence.users);
       rememberSeenNicknames([state.presence.nickname, ...liveUsers.map((user) => user.name)]);
       state.presence.connected = true;
@@ -1588,6 +1591,7 @@ function setupPresence() {
     if (!state.presence.nickname) return;
 
     state.presence.isLeaving = true;
+    clearOwnMultiCanvas(true, "leave-page");
 
     if (shouldUsePresenceServer()) {
       notifyPresenceLeaveToServer();
@@ -2301,6 +2305,8 @@ function pickPack(packs, lastIndexRef) {
 }
 
 function setActiveScreen(name) {
+  const wasMultiActive = el.screenMulti.classList.contains("active");
+
   el.screenHome.classList.remove("active");
   el.screenGame.classList.remove("active");
   el.screenQuiz.classList.remove("active");
@@ -2310,7 +2316,16 @@ function setActiveScreen(name) {
   if (name === "game") el.screenGame.classList.add("active");
   if (name === "quiz") el.screenQuiz.classList.add("active");
   if (name === "music") el.screenMusic.classList.add("active");
-  if (name === "multi") el.screenMulti.classList.add("active");
+  if (name === "multi") {
+    el.screenMulti.classList.add("active");
+    connectMultiRealtime();
+    syncMultiCanvasSize();
+    redrawMultiCanvasHistory();
+  }
+
+  if (wasMultiActive && name !== "multi") {
+    clearOwnMultiCanvas(true, "leave-screen");
+  }
 }
 
 function fadeTo(nextFn) {
@@ -2980,6 +2995,64 @@ function getNormalizedCanvasPoint(event) {
   return { x, y };
 }
 
+function pruneInactiveMultiCanvasOwners(activeUsers = state.presence.users) {
+  if (!Array.isArray(activeUsers) || !activeUsers.length) return;
+
+  const activeOwnerIds = new Set();
+  activeUsers.forEach((entry, index) => {
+    const normalizedUser = normalizePresenceUser(entry, `presence-active-${index}`);
+    if (normalizedUser?.clientId) {
+      activeOwnerIds.add(normalizedUser.clientId);
+    }
+  });
+
+  if (state.presence.sessionId) {
+    activeOwnerIds.add(state.presence.sessionId);
+  }
+
+  const previousCount = state.multi.canvasEvents.length;
+  state.multi.canvasEvents = state.multi.canvasEvents.filter((entry) => {
+    if (!entry?.ownerSessionId) return true;
+    return activeOwnerIds.has(entry.ownerSessionId);
+  });
+
+  if (state.multi.canvasEvents.length !== previousCount) {
+    redrawMultiCanvasHistory();
+  }
+}
+
+function clearOwnMultiCanvas(shouldBroadcast = true, reason = "manual") {
+  const ownerSessionId = String(state.presence.sessionId || "").trim();
+  if (!ownerSessionId) return;
+
+  const clearTs = Date.now();
+  state.multi.lastClearByOwner[ownerSessionId] = Math.max(
+    Number(state.multi.lastClearByOwner[ownerSessionId] || 0),
+    clearTs,
+  );
+
+  state.multi.drawing = false;
+  state.multi.activeStroke = [];
+  state.multi.pendingBroadcastPoints = [];
+  state.multi.lastPoint = null;
+
+  const previousCount = state.multi.canvasEvents.length;
+  state.multi.canvasEvents = state.multi.canvasEvents.filter((entry) => entry?.ownerSessionId !== ownerSessionId);
+
+  if (previousCount !== state.multi.canvasEvents.length || el.multiCanvas) {
+    redrawMultiCanvasHistory();
+  }
+
+  if (shouldBroadcast && state.presence.nickname) {
+    sendMultiRealtimeEvent({
+      type: "clear-own-canvas",
+      ownerSessionId,
+      reason,
+      ts: clearTs,
+    }, false).catch(() => {});
+  }
+}
+
 function renderMultiChatMessages() {
   if (!el.multiChatMessages) return;
   el.multiChatMessages.innerHTML = "";
@@ -3224,12 +3297,22 @@ function applyMultiRealtimeEvent(payload) {
 
   if (payload.type === "draw-stroke" || payload.type === "draw-segment") {
     if (!Array.isArray(payload.points) || payload.points.length < 2) return;
+
+    const ownerSessionId = String(payload.ownerSessionId || payload.sessionId || "").trim();
+    const eventTs = Number(payload.ts || Date.now());
+    const lastClearTs = Number(state.multi.lastClearByOwner[ownerSessionId] || 0);
+
+    if (ownerSessionId && lastClearTs && eventTs <= lastClearTs) {
+      return;
+    }
+
     state.multi.canvasEvents.push({
       type: payload.type,
       points: payload.points,
       color: payload.color || state.multi.brushColor,
       size: Number(payload.size || state.multi.brushSize),
-      ownerSessionId: payload.ownerSessionId || payload.sessionId || "",
+      ownerSessionId,
+      ts: eventTs,
     });
 
     if (state.multi.canvasEvents.length > 500) {
@@ -3243,7 +3326,22 @@ function applyMultiRealtimeEvent(payload) {
   if (payload.type === "clear-own-canvas") {
     const ownerSessionId = String(payload.ownerSessionId || payload.sessionId || "").trim();
     if (!ownerSessionId) return;
+
+    const clearTs = Number(payload.ts || Date.now());
+    state.multi.lastClearByOwner[ownerSessionId] = Math.max(
+      Number(state.multi.lastClearByOwner[ownerSessionId] || 0),
+      clearTs,
+    );
+
     state.multi.canvasEvents = state.multi.canvasEvents.filter((entry) => entry.ownerSessionId !== ownerSessionId);
+
+    if (ownerSessionId === state.presence.sessionId) {
+      state.multi.drawing = false;
+      state.multi.activeStroke = [];
+      state.multi.pendingBroadcastPoints = [];
+      state.multi.lastPoint = null;
+    }
+
     redrawMultiCanvasHistory();
     return;
   }
@@ -3529,12 +3627,7 @@ function setupMultiCanvas() {
 
   el.btnClearMultiCanvas?.addEventListener("click", (event) => {
     event.preventDefault();
-    state.multi.canvasEvents = state.multi.canvasEvents.filter((entry) => entry.ownerSessionId !== state.presence.sessionId);
-    redrawMultiCanvasHistory();
-    sendMultiRealtimeEvent({
-      type: "clear-own-canvas",
-      ownerSessionId: state.presence.sessionId,
-    }, false).catch(() => {});
+    clearOwnMultiCanvas(true, "manual-clear");
   });
 
   window.addEventListener("resize", () => {

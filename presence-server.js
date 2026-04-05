@@ -10,6 +10,7 @@ const presenceClients = new Set();
 const presenceUsers = new Map();
 const multiClients = new Set();
 const multiEventHistory = [];
+const clearedCanvasTimestamps = new Map();
 
 function setCorsHeaders(res) {
   res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
@@ -171,10 +172,22 @@ function sanitizeMultiPayload(payload) {
 }
 
 function rememberMultiEvent(eventPayload) {
-  if (eventPayload.type === 'clear-own-canvas' && eventPayload.ownerSessionId) {
+  const ownerSessionId = String(eventPayload.ownerSessionId || eventPayload.sessionId || '').trim();
+  const eventTs = Number(eventPayload.ts || Date.now());
+
+  if ((eventPayload.type === 'draw-segment' || eventPayload.type === 'draw-stroke') && ownerSessionId) {
+    const clearedAt = Number(clearedCanvasTimestamps.get(ownerSessionId) || 0);
+    if (clearedAt && eventTs <= clearedAt) {
+      return false;
+    }
+  }
+
+  if (eventPayload.type === 'clear-own-canvas' && ownerSessionId) {
+    clearedCanvasTimestamps.set(ownerSessionId, Math.max(Number(clearedCanvasTimestamps.get(ownerSessionId) || 0), eventTs));
+
     for (let index = multiEventHistory.length - 1; index >= 0; index -= 1) {
       const entry = multiEventHistory[index];
-      if (!entry || entry.ownerSessionId !== eventPayload.ownerSessionId) continue;
+      if (!entry || entry.ownerSessionId !== ownerSessionId) continue;
       if (entry.type === 'draw-segment' || entry.type === 'draw-stroke') {
         multiEventHistory.splice(index, 1);
       }
@@ -185,10 +198,15 @@ function rememberMultiEvent(eventPayload) {
   if (multiEventHistory.length > MAX_MULTI_HISTORY) {
     multiEventHistory.splice(0, multiEventHistory.length - MAX_MULTI_HISTORY);
   }
+
+  return true;
 }
 
 function broadcastMultiEvent(eventPayload) {
-  rememberMultiEvent(eventPayload);
+  if (!rememberMultiEvent(eventPayload)) {
+    return;
+  }
+
   for (const client of multiClients) {
     writeSse(client, eventPayload);
   }
