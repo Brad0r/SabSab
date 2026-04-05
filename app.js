@@ -379,9 +379,9 @@ const PLAYER_MODES = {
 };
 
 const PEER_PRESENCE_ROOM = "sabsab-salon-public";
-const PEER_PRESENCE_TTL_MS = 12000;
-const PEER_PRESENCE_HEARTBEAT_MS = 4000;
-const PEER_PRESENCE_POLL_MS = 2500;
+const PEER_PRESENCE_TTL_MS = 20000;
+const PEER_PRESENCE_HEARTBEAT_MS = 3000;
+const PEER_PRESENCE_POLL_MS = 1800;
 const PUBLIC_PRESENCE_WEBHOOK_ID = "eb0e1985-838b-44b3-be24-5209929f010c";
 const PUBLIC_PRESENCE_POST_URL = `https://webhook.site/${PUBLIC_PRESENCE_WEBHOOK_ID}`;
 
@@ -1123,36 +1123,46 @@ async function connectPeerPresence() {
     updateOnlinePanel();
   };
 
+  let syncInFlight = false;
+
   const syncPresenceNow = async () => {
-    await postPresenceHeartbeat();
-    await refreshPresenceUsers();
+    if (state.presence.connectToken !== connectToken || syncInFlight) return;
+    syncInFlight = true;
+
+    try {
+      await postPresenceHeartbeat();
+      await refreshPresenceUsers();
+      state.presence.connected = true;
+    } catch (error) {
+      if (state.presence.connectToken !== connectToken) return;
+      state.presence.connected = false;
+      updateOnlinePanel();
+      console.warn("Presence sync retry:", error);
+    } finally {
+      syncInFlight = false;
+    }
   };
 
   state.presence.refreshNow = () => {
-    syncPresenceNow().catch(() => {});
+    void syncPresenceNow();
   };
 
-  try {
-    await syncPresenceNow();
+  state.presence.peerHeartbeatTimer = window.setInterval(() => {
+    void syncPresenceNow();
+  }, PEER_PRESENCE_HEARTBEAT_MS);
 
-    state.presence.peerHeartbeatTimer = window.setInterval(() => {
-      syncPresenceNow().catch(() => {});
-    }, PEER_PRESENCE_HEARTBEAT_MS);
+  state.presence.peerPollTimer = window.setInterval(() => {
+    void refreshPresenceUsers().catch(() => {
+      if (state.presence.connectToken !== connectToken) return;
+      state.presence.connected = false;
+      updateOnlinePanel();
+    });
+  }, PEER_PRESENCE_POLL_MS);
 
-    state.presence.peerPollTimer = window.setInterval(() => {
-      refreshPresenceUsers().catch(() => {});
-    }, PEER_PRESENCE_POLL_MS);
-  } catch (error) {
-    if (state.presence.connectToken !== connectToken) return;
-
-    state.presence.mode = "offline";
-    state.presence.connected = false;
-    state.presence.users = state.presence.nickname
-      ? [{ id: state.presence.sessionId, name: state.presence.nickname }]
-      : [];
-    updateOnlinePanel();
-    console.warn("Presence fallback unavailable:", error);
-  }
+  void syncPresenceNow();
+  window.setTimeout(() => {
+    void syncPresenceNow();
+  }, 900);
 }
 
 function connectPresenceStream() {
@@ -1240,6 +1250,8 @@ function setupPresence() {
         }
         if (el.soundPanel && el.onlinePanel && !el.onlinePanel.hidden) {
           el.soundPanel.hidden = true;
+        }
+        if (el.onlinePanel && !el.onlinePanel.hidden) {
           refreshPresenceImmediately();
         }
         updateOnlinePanel();
