@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Noto+Sans+JP:wght@400;700;900&family=Zen+Kurenaido&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260405r" />
+  <link rel="stylesheet" href="styles.css?v=20260405s" />
 </head>
 <body>
   <div id="screen-home" class="screen active">
@@ -200,36 +200,6 @@
           <button id="btn-mode-shuffle" class="mode-chip" type="button" title="Lecture aléatoire" aria-label="Lecture aléatoire">🔀</button>
         </div>
 
-        <div class="music-instrument-launch">
-          <button id="btn-toggle-sky-piano" class="secondary-cta" type="button" aria-expanded="false" aria-controls="sky-piano-panel">🎹 Ouvrir le piano</button>
-        </div>
-      </section>
-
-      <section id="sky-piano-panel" class="music-instrument-card manga-panel" hidden>
-        <div class="sky-piano-header">
-          <div>
-            <p class="kicker">Instrument céleste</p>
-            <h3>Piano Sky</h3>
-            <p class="sky-piano-copy">15 touches diatoniques, accords et transposition instantanée dans une ambiance douce.</p>
-          </div>
-
-          <label class="sky-key-select-wrap" for="sky-key-select">
-            <span>Tonalité</span>
-            <select id="sky-key-select" aria-label="Choisir la tonalité du piano">
-              <option value="C">Do majeur</option>
-              <option value="G">Sol majeur</option>
-              <option value="D">Ré majeur</option>
-              <option value="A">La majeur</option>
-              <option value="E">Mi majeur</option>
-              <option value="F">Fa majeur</option>
-              <option value="Bb">Si♭ majeur</option>
-            </select>
-          </label>
-        </div>
-
-        <p id="sky-piano-status" class="sky-piano-status">Choisis une tonalité puis joue au toucher ou au clavier.</p>
-        <div id="sky-piano-grid" class="sky-piano-grid" aria-label="Piano céleste interactif"></div>
-        <p class="sky-piano-help">Clavier : Y U I O P · H J K L M · N , ; . /</p>
       </section>
 
       <section class="music-playlists-card manga-panel">
@@ -293,22 +263,18 @@
         <div class="multi-card-header">
           <div>
             <p class="kicker">Mélodie commune</p>
-            <h3>Carillon céleste</h3>
+            <h3>Musique</h3>
           </div>
+          <button id="btn-toggle-sky-piano" class="secondary-cta multi-music-launch" type="button" aria-expanded="false" aria-controls="sky-piano-panel">Musique</button>
         </div>
 
-        <div id="multi-music-pads" class="multi-music-grid" aria-label="Pads musicaux">
-          <button class="multi-note-btn" type="button" data-note="do"><span>Do</span><small>A</small></button>
-          <button class="multi-note-btn" type="button" data-note="re"><span>Ré</span><small>S</small></button>
-          <button class="multi-note-btn" type="button" data-note="mi"><span>Mi</span><small>D</small></button>
-          <button class="multi-note-btn" type="button" data-note="fa"><span>Fa</span><small>F</small></button>
-          <button class="multi-note-btn" type="button" data-note="sol"><span>Sol</span><small>J</small></button>
-          <button class="multi-note-btn" type="button" data-note="la"><span>La</span><small>K</small></button>
-          <button class="multi-note-btn" type="button" data-note="si"><span>Si</span><small>L</small></button>
-          <button class="multi-note-btn" type="button" data-note="do2"><span>Do+</span><small>;</small></button>
-        </div>
+        <p id="multi-music-hint" class="multi-note">Ouvre le piano puis joue ensemble dans le salon.</p>
 
-        <p id="multi-music-hint" class="multi-note">Clique une note pour jouer une mélodie douce et la partager au salon.</p>
+        <section id="sky-piano-panel" class="multi-sky-panel" hidden>
+          <p id="sky-piano-status" class="sky-piano-status">Piano prêt : Y U I O P · H J K L M · N , ; : !</p>
+          <div id="sky-piano-grid" class="multi-music-grid sky-piano-grid" aria-label="Piano céleste interactif"></div>
+          <p class="sky-piano-help">Clavier : Y U I O P · H J K L M · N , ; : !</p>
+        </section>
       </section>
     </main>
 
@@ -447,6 +413,6 @@
       return "";
     })();
   </script>
-  <script src="app.js?v=20260405r"></script>
+  <script src="app.js?v=20260405s"></script>
 </body>
 </html>

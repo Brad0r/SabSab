@@ -418,14 +418,21 @@ const PUBLIC_MULTI_TOPIC = "sabsab-live-multi";
 const PUBLIC_MULTI_POST_URL = `https://ntfy.sh/${PUBLIC_MULTI_TOPIC}`;
 const PUBLIC_MULTI_STREAM_URL = `https://ntfy.sh/${PUBLIC_MULTI_TOPIC}/sse?since=1m`;
 const MULTI_MUSIC_NOTES = [
-  { id: "do", label: "Do", key: "A", freq: 261.63 },
-  { id: "re", label: "Ré", key: "S", freq: 293.66 },
-  { id: "mi", label: "Mi", key: "D", freq: 329.63 },
-  { id: "fa", label: "Fa", key: "F", freq: 349.23 },
-  { id: "sol", label: "Sol", key: "J", freq: 392.0 },
-  { id: "la", label: "La", key: "K", freq: 440.0 },
-  { id: "si", label: "Si", key: "L", freq: 493.88 },
-  { id: "do2", label: "Do+", key: ";", freq: 523.25 },
+  { id: "f4", name: "Fa", label: "Fa4", key: "Y", aliases: ["y", "Y"], freq: 349.23 },
+  { id: "g4", name: "Sol", label: "Sol4", key: "U", aliases: ["u", "U"], freq: 392.0 },
+  { id: "a4", name: "La", label: "La4", key: "I", aliases: ["i", "I"], freq: 440.0 },
+  { id: "b4", name: "Si", label: "Si4", key: "O", aliases: ["o", "O"], freq: 493.88 },
+  { id: "c5", name: "Do", label: "Do5", key: "P", aliases: ["p", "P"], freq: 523.25 },
+  { id: "a3", name: "La", label: "La3", key: "H", aliases: ["h", "H"], freq: 220.0 },
+  { id: "b3", name: "Si", label: "Si3", key: "J", aliases: ["j", "J"], freq: 246.94 },
+  { id: "c4", name: "Do", label: "Do4", key: "K", aliases: ["k", "K"], freq: 261.63 },
+  { id: "d4", name: "Ré", label: "Ré4", key: "L", aliases: ["l", "L"], freq: 293.66 },
+  { id: "e4", name: "Mi", label: "Mi4", key: "M", aliases: ["m", "M"], freq: 329.63 },
+  { id: "c3", name: "Do", label: "Do3", key: "N", aliases: ["n", "N"], freq: 130.81 },
+  { id: "d3", name: "Ré", label: "Ré3", key: ",", aliases: [","], freq: 146.83 },
+  { id: "e3", name: "Mi", label: "Mi3", key: ";", aliases: [";"], freq: 164.81 },
+  { id: "f3", name: "Fa", label: "Fa3", key: ":", aliases: [":"], freq: 174.61 },
+  { id: "g3", name: "Sol", label: "Sol3", key: "!", aliases: ["!", "1"], freq: 196.0 },
 ];
 
 const SKY_PIANO_SCALE_OPTIONS = [
@@ -442,21 +449,21 @@ const SKY_NOTE_NAMES_SHARP = ["Do", "Do♯", "Ré", "Ré♯", "Mi", "Fa", "Fa♯
 const SKY_NOTE_NAMES_FLAT = ["Do", "Ré♭", "Ré", "Mi♭", "Mi", "Fa", "Sol♭", "Sol", "La♭", "La", "Si♭", "Si"];
 const SKY_MAJOR_INTERVALS = [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19, 21, 23, 24];
 const SKY_PIANO_LAYOUT = [
-  { noteIndex: 10, keyLabel: "Y", codes: ["KeyY"], aliases: ["y", "Y"] },
-  { noteIndex: 11, keyLabel: "U", codes: ["KeyU"], aliases: ["u", "U"] },
-  { noteIndex: 12, keyLabel: "I", codes: ["KeyI"], aliases: ["i", "I"] },
-  { noteIndex: 13, keyLabel: "O", codes: ["KeyO"], aliases: ["o", "O"] },
-  { noteIndex: 14, keyLabel: "P", codes: ["KeyP"], aliases: ["p", "P"] },
-  { noteIndex: 5, keyLabel: "H", codes: ["KeyH"], aliases: ["h", "H"] },
-  { noteIndex: 6, keyLabel: "J", codes: ["KeyJ"], aliases: ["j", "J"] },
-  { noteIndex: 7, keyLabel: "K", codes: ["KeyK"], aliases: ["k", "K"] },
-  { noteIndex: 8, keyLabel: "L", codes: ["KeyL"], aliases: ["l", "L"] },
-  { noteIndex: 9, keyLabel: "M", codes: ["KeyM"], aliases: ["m", "M"] },
-  { noteIndex: 0, keyLabel: "N", codes: ["KeyN"], aliases: ["n", "N"] },
-  { noteIndex: 1, keyLabel: ",", codes: ["Comma"], aliases: [","] },
-  { noteIndex: 2, keyLabel: ";", codes: ["Semicolon"], aliases: [";", ":"] },
-  { noteIndex: 3, keyLabel: ".", codes: ["Period"], aliases: ["."] },
-  { noteIndex: 4, keyLabel: "/", codes: ["Slash"], aliases: ["/", "!"] },
+  { noteId: "f4", keyLabel: "Y", codes: ["KeyY"], aliases: ["y", "Y"] },
+  { noteId: "g4", keyLabel: "U", codes: ["KeyU"], aliases: ["u", "U"] },
+  { noteId: "a4", keyLabel: "I", codes: ["KeyI"], aliases: ["i", "I"] },
+  { noteId: "b4", keyLabel: "O", codes: ["KeyO"], aliases: ["o", "O"] },
+  { noteId: "c5", keyLabel: "P", codes: ["KeyP"], aliases: ["p", "P"] },
+  { noteId: "a3", keyLabel: "H", codes: ["KeyH"], aliases: ["h", "H"] },
+  { noteId: "b3", keyLabel: "J", codes: ["KeyJ"], aliases: ["j", "J"] },
+  { noteId: "c4", keyLabel: "K", codes: ["KeyK"], aliases: ["k", "K"] },
+  { noteId: "d4", keyLabel: "L", codes: ["KeyL"], aliases: ["l", "L"] },
+  { noteId: "e4", keyLabel: "M", codes: ["KeyM"], aliases: ["m", "M"] },
+  { noteId: "c3", keyLabel: "N", codes: ["KeyN"], aliases: ["n", "N"] },
+  { noteId: "d3", keyLabel: ",", codes: ["Comma"], aliases: [","] },
+  { noteId: "e3", keyLabel: ";", codes: ["Semicolon"], aliases: [";"] },
+  { noteId: "f3", keyLabel: ":", codes: ["Quote"], aliases: [":"] },
+  { noteId: "g3", keyLabel: "!", codes: ["Digit1"], aliases: ["!", "1"] },
 ];
 
 function readSavedTheme() {
@@ -2366,31 +2373,29 @@ function flashSkyPianoButton(button) {
 function renderSkyPiano() {
   if (!el.skyPianoGrid) return;
 
-  if (el.skyKeySelect) {
-    el.skyKeySelect.value = state.audio.skyKey;
-  }
-
   el.skyPianoGrid.innerHTML = "";
 
   SKY_PIANO_LAYOUT.forEach((binding) => {
-    const noteData = getSkyPianoNoteData(binding.noteIndex);
+    const noteData = MULTI_MUSIC_NOTES.find((entry) => entry.id === binding.noteId);
+    if (!noteData) return;
+
     const button = document.createElement("button");
     button.type = "button";
     button.className = "sky-piano-key";
-    button.dataset.noteIndex = String(binding.noteIndex);
+    button.dataset.note = noteData.id;
     button.dataset.noteLabel = noteData.label;
     button.dataset.noteFreq = String(noteData.freq);
     button.dataset.keyLabel = binding.keyLabel;
     button.setAttribute("aria-label", `${noteData.label} — clavier ${binding.keyLabel}`);
     button.innerHTML = `
-      <span class="sky-piano-keybind">${binding.keyLabel}</span>
-      <strong class="sky-piano-note">${noteData.noteName}</strong>
+      <strong class="sky-piano-note">${noteData.name}</strong>
       <small class="sky-piano-octave">${noteData.label}</small>
+      <span class="sky-piano-keybind">${binding.keyLabel}</span>
     `;
     el.skyPianoGrid.appendChild(button);
   });
 
-  setSkyPianoStatus(`Tonalité active : ${getSkyPianoScale().label}.`);
+  setSkyPianoStatus("Piano prêt : Y U I O P · H J K L M · N , ; : !");
 }
 
 function toggleSkyPiano(forceOpen) {
@@ -2400,7 +2405,7 @@ function toggleSkyPiano(forceOpen) {
   state.audio.skyPianoOpen = shouldOpen;
   el.skyPianoPanel.hidden = !shouldOpen;
   el.btnToggleSkyPiano.setAttribute("aria-expanded", String(shouldOpen));
-  el.btnToggleSkyPiano.textContent = shouldOpen ? "🎹 Fermer le piano" : "🎹 Ouvrir le piano";
+  el.btnToggleSkyPiano.textContent = shouldOpen ? "Fermer la musique" : "Musique";
 
   if (shouldOpen) {
     renderSkyPiano();
@@ -2410,46 +2415,13 @@ function toggleSkyPiano(forceOpen) {
 function triggerSkyPianoNote(button, source = "toucher") {
   if (!button) return;
 
+  const noteId = String(button.dataset.note || "");
+  if (!noteId) return;
+
   flashSkyPianoButton(button);
   const noteLabel = button.dataset.noteLabel || "Note";
   setSkyPianoStatus(`${noteLabel} · joué au ${source}.`);
-
-  const toneContext = ensureSkyToneContext(true);
-  if (!toneContext || state.audio.mutedAll || !state.audio.musicEnabled || state.audio.musicVolume <= 0) {
-    return;
-  }
-
-  const freq = Number(button.dataset.noteFreq || 0);
-  if (!Number.isFinite(freq) || freq <= 0) return;
-
-  const now = toneContext.currentTime;
-  const body = toneContext.createGain();
-  const filter = toneContext.createBiquadFilter();
-  const oscillator = toneContext.createOscillator();
-  const shimmer = toneContext.createOscillator();
-
-  oscillator.type = "triangle";
-  shimmer.type = "sine";
-  oscillator.frequency.setValueAtTime(freq, now);
-  shimmer.frequency.setValueAtTime(freq * 2, now);
-  filter.type = "lowpass";
-  filter.frequency.setValueAtTime(2800, now);
-  filter.Q.value = 2.5;
-
-  body.gain.setValueAtTime(0.0001, now);
-  body.gain.exponentialRampToValueAtTime(Math.max(0.05, state.audio.musicVolume * 0.16), now + 0.03);
-  body.gain.exponentialRampToValueAtTime(Math.max(0.025, state.audio.musicVolume * 0.08), now + 0.18);
-  body.gain.exponentialRampToValueAtTime(0.0001, now + 1.35);
-
-  oscillator.connect(filter);
-  shimmer.connect(filter);
-  filter.connect(body);
-  body.connect(skyPianoMasterGain);
-
-  oscillator.start(now);
-  shimmer.start(now);
-  oscillator.stop(now + 1.3);
-  shimmer.stop(now + 1.2);
+  playMultiMusicNote(noteId, true);
 }
 
 function getSkyKeyboardBinding(event) {
@@ -2949,34 +2921,48 @@ function playMultiMusicNote(noteId, shouldBroadcast = false) {
   const note = MULTI_MUSIC_NOTES.find((entry) => entry.id === noteId);
   if (!note) return;
 
-  const toneContext = ensureMultiToneContext(shouldBroadcast);
+  const toneContext = ensureSkyToneContext(shouldBroadcast);
 
-  if (toneContext) {
+  if (toneContext && skyPianoMasterGain && !state.audio.mutedAll && state.audio.musicEnabled && state.audio.musicVolume > 0) {
     const now = toneContext.currentTime;
+    const body = toneContext.createGain();
+    const filter = toneContext.createBiquadFilter();
     const oscillator = toneContext.createOscillator();
-    const gain = toneContext.createGain();
+    const shimmer = toneContext.createOscillator();
+
     oscillator.type = "triangle";
+    shimmer.type = "sine";
     oscillator.frequency.setValueAtTime(note.freq, now);
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.2, now + 0.03);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.8);
-    oscillator.connect(gain);
-    gain.connect(toneContext.destination);
+    shimmer.frequency.setValueAtTime(note.freq * 2, now);
+    filter.type = "lowpass";
+    filter.frequency.setValueAtTime(2800, now);
+    filter.Q.value = 2.5;
+
+    body.gain.setValueAtTime(0.0001, now);
+    body.gain.exponentialRampToValueAtTime(Math.max(0.05, state.audio.musicVolume * 0.16), now + 0.03);
+    body.gain.exponentialRampToValueAtTime(Math.max(0.025, state.audio.musicVolume * 0.08), now + 0.18);
+    body.gain.exponentialRampToValueAtTime(0.0001, now + 1.35);
+
+    oscillator.connect(filter);
+    shimmer.connect(filter);
+    filter.connect(body);
+    body.connect(skyPianoMasterGain);
+
     oscillator.start(now);
-    oscillator.stop(now + 0.85);
+    shimmer.start(now);
+    oscillator.stop(now + 1.3);
+    shimmer.stop(now + 1.2);
   }
 
-  el.multiMusicPads?.querySelectorAll("[data-note]").forEach((button) => {
+  el.skyPianoGrid?.querySelectorAll("[data-note]").forEach((button) => {
     if (button.dataset.note !== noteId) return;
-    button.classList.add("is-playing");
-    window.setTimeout(() => {
-      button.classList.remove("is-playing");
-    }, 260);
+    flashSkyPianoButton(button);
   });
 
   if (el.multiMusicHint) {
     el.multiMusicHint.textContent = `${note.label} résonne dans le salon.`;
   }
+  setSkyPianoStatus(`${note.label} · partagé dans le salon.`);
 
   if (shouldBroadcast) {
     sendMultiRealtimeEvent({ type: "music-note", noteId }, false).catch(() => {
@@ -3266,13 +3252,20 @@ function setupMultiScreen() {
 
   document.addEventListener("keydown", (event) => {
     if (!el.screenMulti?.classList.contains("active")) return;
-    if (event.repeat) return;
+    if (event.repeat || isTypingField(event.target)) return;
 
-    const note = MULTI_MUSIC_NOTES.find((entry) => entry.key.toLowerCase() === event.key.toLowerCase());
-    if (!note) return;
+    const binding = getSkyKeyboardBinding(event);
+    if (!binding) return;
+
+    if (el.skyPianoPanel?.hidden) {
+      toggleSkyPiano(true);
+    }
+
+    const button = el.skyPianoGrid?.querySelector(`[data-note="${binding.noteId}"]`);
+    if (!button) return;
 
     event.preventDefault();
-    playMultiMusicNote(note.id, true);
+    triggerSkyPianoNote(button, `clavier ${binding.keyLabel}`);
   });
 }
 

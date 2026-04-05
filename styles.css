@@ -148,18 +148,28 @@ body[data-theme="dark"] .sound-note,
 body[data-theme="dark"] .music-time,
 body[data-theme="dark"] .empty-playlist-note,
 body[data-theme="dark"] .multi-note,
-body[data-theme="dark"] .multi-chat-meta {
+body[data-theme="dark"] .multi-chat-meta,
+body[data-theme="dark"] .sky-piano-help,
+body[data-theme="dark"] .sky-piano-status {
   color: #c8dcff;
 }
 
-body[data-theme="dark"] .multi-note-btn {
+body[data-theme="dark"] .multi-note-btn,
+body[data-theme="dark"] .sky-piano-key {
   background: linear-gradient(180deg, #1d3357 0%, #28519c 100%);
   box-shadow: 0 6px 0 #12366f;
 }
 
 body[data-theme="dark"] .multi-note-btn:active,
-body[data-theme="dark"] .multi-note-btn.is-playing {
+body[data-theme="dark"] .multi-note-btn.is-playing,
+body[data-theme="dark"] .sky-piano-key:active,
+body[data-theme="dark"] .sky-piano-key.is-playing {
   box-shadow: 0 2px 0 #12366f;
+}
+
+body[data-theme="dark"] .sky-piano-keybind {
+  background: rgba(10, 20, 38, 0.42);
+  color: #eef5ff;
 }
 
 body[data-theme="dark"] .multi-canvas-wrap {
@@ -921,8 +931,21 @@ body[data-theme="dark"] .playlist-card.active {
 
 .multi-music-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
+}
+
+.multi-music-launch {
+  min-width: 120px;
+}
+
+.multi-sky-panel {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 2px solid rgba(125, 173, 255, 0.2);
+  background: rgba(9, 20, 40, 0.16);
 }
 
 .multi-note-btn {
@@ -1753,7 +1776,7 @@ body.chaos-mode .apology-btn {
   }
 
   .multi-music-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .sound-panel {
