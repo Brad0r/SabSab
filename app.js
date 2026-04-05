@@ -418,21 +418,21 @@ const PUBLIC_MULTI_TOPIC = "sabsab-live-multi";
 const PUBLIC_MULTI_POST_URL = `https://ntfy.sh/${PUBLIC_MULTI_TOPIC}`;
 const PUBLIC_MULTI_STREAM_URL = `https://ntfy.sh/${PUBLIC_MULTI_TOPIC}/sse?since=1m`;
 const MULTI_MUSIC_NOTES = [
-  { id: "f4", name: "Fa", label: "Fa4", key: "Y", aliases: ["y", "Y"], freq: 349.23 },
-  { id: "g4", name: "Sol", label: "Sol4", key: "U", aliases: ["u", "U"], freq: 392.0 },
-  { id: "a4", name: "La", label: "La4", key: "I", aliases: ["i", "I"], freq: 440.0 },
-  { id: "b4", name: "Si", label: "Si4", key: "O", aliases: ["o", "O"], freq: 493.88 },
-  { id: "c5", name: "Do", label: "Do5", key: "P", aliases: ["p", "P"], freq: 523.25 },
+  { id: "c3", name: "Do", label: "Do3", key: "Y", aliases: ["y", "Y"], freq: 130.81 },
+  { id: "d3", name: "Ré", label: "Ré3", key: "U", aliases: ["u", "U"], freq: 146.83 },
+  { id: "e3", name: "Mi", label: "Mi3", key: "I", aliases: ["i", "I"], freq: 164.81 },
+  { id: "f3", name: "Fa", label: "Fa3", key: "O", aliases: ["o", "O"], freq: 174.61 },
+  { id: "g3", name: "Sol", label: "Sol3", key: "P", aliases: ["p", "P"], freq: 196.0 },
   { id: "a3", name: "La", label: "La3", key: "H", aliases: ["h", "H"], freq: 220.0 },
   { id: "b3", name: "Si", label: "Si3", key: "J", aliases: ["j", "J"], freq: 246.94 },
   { id: "c4", name: "Do", label: "Do4", key: "K", aliases: ["k", "K"], freq: 261.63 },
   { id: "d4", name: "Ré", label: "Ré4", key: "L", aliases: ["l", "L"], freq: 293.66 },
   { id: "e4", name: "Mi", label: "Mi4", key: "M", aliases: ["m", "M"], freq: 329.63 },
-  { id: "c3", name: "Do", label: "Do3", key: "N", aliases: ["n", "N"], freq: 130.81 },
-  { id: "d3", name: "Ré", label: "Ré3", key: ",", aliases: [","], freq: 146.83 },
-  { id: "e3", name: "Mi", label: "Mi3", key: ";", aliases: [";"], freq: 164.81 },
-  { id: "f3", name: "Fa", label: "Fa3", key: ":", aliases: [":"], freq: 174.61 },
-  { id: "g3", name: "Sol", label: "Sol3", key: "!", aliases: ["!", "1"], freq: 196.0 },
+  { id: "f4", name: "Fa", label: "Fa4", key: "N", aliases: ["n", "N"], freq: 349.23 },
+  { id: "g4", name: "Sol", label: "Sol4", key: ",", aliases: [","], freq: 392.0 },
+  { id: "a4", name: "La", label: "La4", key: ";", aliases: [";"], freq: 440.0 },
+  { id: "b4", name: "Si", label: "Si4", key: ":", aliases: [":"], freq: 493.88 },
+  { id: "c5", name: "Do", label: "Do5", key: "!", aliases: ["!"], freq: 523.25 },
 ];
 
 const SKY_PIANO_SCALE_OPTIONS = [
@@ -449,21 +449,21 @@ const SKY_NOTE_NAMES_SHARP = ["Do", "Do♯", "Ré", "Ré♯", "Mi", "Fa", "Fa♯
 const SKY_NOTE_NAMES_FLAT = ["Do", "Ré♭", "Ré", "Mi♭", "Mi", "Fa", "Sol♭", "Sol", "La♭", "La", "Si♭", "Si"];
 const SKY_MAJOR_INTERVALS = [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19, 21, 23, 24];
 const SKY_PIANO_LAYOUT = [
-  { noteId: "f4", keyLabel: "Y", codes: ["KeyY"], aliases: ["y", "Y"] },
-  { noteId: "g4", keyLabel: "U", codes: ["KeyU"], aliases: ["u", "U"] },
-  { noteId: "a4", keyLabel: "I", codes: ["KeyI"], aliases: ["i", "I"] },
-  { noteId: "b4", keyLabel: "O", codes: ["KeyO"], aliases: ["o", "O"] },
-  { noteId: "c5", keyLabel: "P", codes: ["KeyP"], aliases: ["p", "P"] },
+  { noteId: "c3", keyLabel: "Y", codes: ["KeyY"], aliases: ["y", "Y"] },
+  { noteId: "d3", keyLabel: "U", codes: ["KeyU"], aliases: ["u", "U"] },
+  { noteId: "e3", keyLabel: "I", codes: ["KeyI"], aliases: ["i", "I"] },
+  { noteId: "f3", keyLabel: "O", codes: ["KeyO"], aliases: ["o", "O"] },
+  { noteId: "g3", keyLabel: "P", codes: ["KeyP"], aliases: ["p", "P"] },
   { noteId: "a3", keyLabel: "H", codes: ["KeyH"], aliases: ["h", "H"] },
   { noteId: "b3", keyLabel: "J", codes: ["KeyJ"], aliases: ["j", "J"] },
   { noteId: "c4", keyLabel: "K", codes: ["KeyK"], aliases: ["k", "K"] },
   { noteId: "d4", keyLabel: "L", codes: ["KeyL"], aliases: ["l", "L"] },
   { noteId: "e4", keyLabel: "M", codes: ["KeyM"], aliases: ["m", "M"] },
-  { noteId: "c3", keyLabel: "N", codes: ["KeyN"], aliases: ["n", "N"] },
-  { noteId: "d3", keyLabel: ",", codes: ["Comma"], aliases: [","] },
-  { noteId: "e3", keyLabel: ";", codes: ["Semicolon"], aliases: [";"] },
-  { noteId: "f3", keyLabel: ":", codes: ["Quote"], aliases: [":"] },
-  { noteId: "g3", keyLabel: "!", codes: ["Digit1"], aliases: ["!", "1"] },
+  { noteId: "f4", keyLabel: "N", codes: ["KeyN"], aliases: ["n", "N"] },
+  { noteId: "g4", keyLabel: ",", codes: ["Comma"], aliases: [","] },
+  { noteId: "a4", keyLabel: ";", codes: ["Semicolon"], aliases: [";"] },
+  { noteId: "b4", keyLabel: ":", codes: ["Quote"], aliases: [":"] },
+  { noteId: "c5", keyLabel: "!", codes: ["Digit1"], aliases: ["!"] },
 ];
 
 function readSavedTheme() {
@@ -2395,7 +2395,7 @@ function renderSkyPiano() {
     el.skyPianoGrid.appendChild(button);
   });
 
-  setSkyPianoStatus("Piano prêt : Y U I O P · H J K L M · N , ; : !");
+  setSkyPianoStatus("Piano prêt : Do3 → Do5 sur Y U I O P · H J K L M · N , ; : !");
 }
 
 function toggleSkyPiano(forceOpen) {
@@ -2427,10 +2427,16 @@ function triggerSkyPianoNote(button, source = "toucher") {
 function getSkyKeyboardBinding(event) {
   if (!event) return null;
 
-  return SKY_PIANO_LAYOUT.find((binding) => (
-    binding.codes.includes(event.code)
-    || binding.aliases.includes(event.key)
-  )) || null;
+  const typedKey = typeof event.key === "string" ? event.key : "";
+
+  return SKY_PIANO_LAYOUT.find((binding) => {
+    if (binding.aliases.includes(typedKey)) {
+      return true;
+    }
+
+    const isLetterKey = /^[A-Z]$/.test(binding.keyLabel);
+    return isLetterKey && binding.codes.includes(event.code);
+  }) || null;
 }
 
 function isTypingField(target) {
