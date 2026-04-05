@@ -296,6 +296,10 @@ function rememberMultiEvent(eventPayload) {
     }
   }
 
+  if (eventPayload.type === 'music-note') {
+    return true;
+  }
+
   multiEventHistory.push(eventPayload);
   if (multiEventHistory.length > MAX_MULTI_HISTORY) {
     multiEventHistory.splice(0, multiEventHistory.length - MAX_MULTI_HISTORY);

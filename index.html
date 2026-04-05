@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Noto+Sans+JP:wght@400;700;900&family=Zen+Kurenaido&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260405aa" />
+  <link rel="stylesheet" href="styles.css?v=20260405ab" />
 </head>
 <body>
   <div id="screen-home" class="screen active">
@@ -247,16 +247,23 @@
             <h3>Atelier de dessin</h3>
           </div>
           <div class="multi-toolbar">
-            <input id="multi-canvas-color" class="multi-color-input" type="color" value="#ff4f7d" aria-label="Couleur du pinceau" />
-            <input id="multi-canvas-size" class="vol-slider multi-range" type="range" min="2" max="12" step="1" value="4" aria-label="Taille du pinceau" />
-            <button id="btn-clear-multi-canvas" class="secondary-cta" type="button">Effacer</button>
+            <div class="multi-color-picker" aria-label="Couleur du pinceau">
+              <label class="multi-color-wheel" for="multi-canvas-color" title="Choisir une couleur précise">
+                <input id="multi-canvas-color" class="multi-color-input" type="color" value="#ff4f7d" aria-label="Couleur du pinceau" />
+                <span id="multi-color-wheel-core" class="multi-color-wheel-core"></span>
+              </label>
+              <input id="multi-canvas-color-hex" class="multi-color-hex" type="text" value="#FF4F7D" maxlength="7" inputmode="text" spellcheck="false" aria-label="Code couleur exact" />
+            </div>
+            <input id="multi-canvas-size" class="vol-slider multi-range" type="range" min="2" max="18" step="1" value="4" aria-label="Taille du pinceau ou de la gomme" />
+            <button id="btn-toggle-multi-eraser" class="secondary-cta multi-tool-btn" type="button" aria-pressed="false">🧽 Gomme</button>
+            <button id="btn-clear-multi-canvas" class="secondary-cta" type="button">Effacer mes dessins</button>
           </div>
         </div>
 
         <div class="multi-canvas-wrap">
           <canvas id="multi-canvas" aria-label="Zone de dessin partagé"></canvas>
         </div>
-        <p class="multi-note">Chaque trait sert déjà de base au mode multi temps réel.</p>
+        <p class="multi-note">Pinceau, gomme et couleur précise sont partagés en temps réel dans le salon.</p>
       </section>
 
       <section class="multi-card manga-panel">
@@ -417,6 +424,6 @@
       return "";
     })();
   </script>
-  <script src="app.js?v=20260405aa"></script>
+  <script src="app.js?v=20260405ab"></script>
 </body>
 </html>

@@ -334,7 +334,10 @@ const el = {
   multiChatInput: document.getElementById("multi-chat-input"),
   multiCanvas: document.getElementById("multi-canvas"),
   multiCanvasColor: document.getElementById("multi-canvas-color"),
+  multiCanvasColorHex: document.getElementById("multi-canvas-color-hex"),
+  multiColorWheelCore: document.getElementById("multi-color-wheel-core"),
   multiCanvasSize: document.getElementById("multi-canvas-size"),
+  btnToggleMultiEraser: document.getElementById("btn-toggle-multi-eraser"),
   btnClearMultiCanvas: document.getElementById("btn-clear-multi-canvas"),
   multiMusicPads: document.getElementById("multi-music-pads"),
   multiMusicHint: document.getElementById("multi-music-hint"),
@@ -681,11 +684,14 @@ const state = {
     lastClearByOwner: {},
     brushColor: "#ff4f7d",
     brushSize: 4,
+    tool: "brush",
+    activeTool: "brush",
     drawing: false,
     activeStroke: [],
     lastPoint: null,
     lastBroadcastAt: 0,
     pendingBroadcastPoints: [],
+    historyCutoff: 0,
   },
   home: {
     total: 0,
@@ -1341,7 +1347,6 @@ async function connectPeerPresence() {
       }
 
       state.presence.users = getSortedPresenceUsers(nextUsers);
-      pruneInactiveMultiCanvasOwners(state.presence.users);
       rememberSeenNicknames([state.presence.nickname, ...state.presence.users.map((user) => user.name)]);
       state.presence.connected = isAnyProviderLive() || state.presence.users.length > 0;
       updateOnlinePanel();
@@ -1463,7 +1468,6 @@ function connectPresenceStream() {
       const payload = JSON.parse(event.data);
       if (payload.type !== "presence") return;
       state.presence.users = Array.isArray(payload.users) ? payload.users : [];
-      pruneInactiveMultiCanvasOwners(state.presence.users);
       const liveUsers = getSortedPresenceUsers(state.presence.users);
       rememberSeenNicknames([state.presence.nickname, ...liveUsers.map((user) => user.name)]);
       state.presence.connected = true;
@@ -3035,6 +3039,7 @@ function clearOwnMultiCanvas(shouldBroadcast = true, reason = "manual") {
   state.multi.activeStroke = [];
   state.multi.pendingBroadcastPoints = [];
   state.multi.lastPoint = null;
+  state.multi.activeTool = state.multi.tool;
 
   const previousCount = state.multi.canvasEvents.length;
   state.multi.canvasEvents = state.multi.canvasEvents.filter((entry) => entry?.ownerSessionId !== ownerSessionId);
@@ -3051,6 +3056,37 @@ function clearOwnMultiCanvas(shouldBroadcast = true, reason = "manual") {
       ts: clearTs,
     }, false).catch(() => {});
   }
+}
+
+function eraseOwnMultiStroke(points, size = state.multi.brushSize, ownerSessionId = state.presence.sessionId) {
+  if (!Array.isArray(points) || points.length < 2) return false;
+
+  const safeOwnerSessionId = String(ownerSessionId || "").trim();
+  if (!safeOwnerSessionId) return false;
+
+  const smallestCanvasSide = Math.max(1, Math.min(el.multiCanvas?.width || 1200, el.multiCanvas?.height || 800));
+  const eraserRadius = (Math.max(10, Number(size || 10)) * Math.max(window.devicePixelRatio || 1, 1) * 1.3) / smallestCanvasSide;
+  const eraserRadiusSquared = eraserRadius * eraserRadius;
+
+  const touchesStroke = (strokePoints = []) => strokePoints.some((strokePoint) => points.some((erasePoint) => {
+    const dx = Number(strokePoint?.x || 0) - Number(erasePoint?.x || 0);
+    const dy = Number(strokePoint?.y || 0) - Number(erasePoint?.y || 0);
+    return (dx * dx) + (dy * dy) <= eraserRadiusSquared;
+  }));
+
+  const previousCount = state.multi.canvasEvents.length;
+  state.multi.canvasEvents = state.multi.canvasEvents.filter((entry) => {
+    if (!entry || entry.ownerSessionId !== safeOwnerSessionId) return true;
+    if (entry.type !== "draw-stroke" && entry.type !== "draw-segment") return true;
+    return !touchesStroke(entry.points);
+  });
+
+  if (state.multi.canvasEvents.length !== previousCount) {
+    redrawMultiCanvasHistory();
+    return true;
+  }
+
+  return false;
 }
 
 function renderMultiChatMessages() {
@@ -3323,6 +3359,12 @@ function applyMultiRealtimeEvent(payload) {
     return;
   }
 
+  if (payload.type === "erase-stroke") {
+    if (!Array.isArray(payload.points) || payload.points.length < 2) return;
+    eraseOwnMultiStroke(payload.points, payload.size, payload.ownerSessionId || payload.sessionId || "");
+    return;
+  }
+
   if (payload.type === "clear-own-canvas") {
     const ownerSessionId = String(payload.ownerSessionId || payload.sessionId || "").trim();
     if (!ownerSessionId) return;
@@ -3340,6 +3382,7 @@ function applyMultiRealtimeEvent(payload) {
       state.multi.activeStroke = [];
       state.multi.pendingBroadcastPoints = [];
       state.multi.lastPoint = null;
+      state.multi.activeTool = state.multi.tool;
     }
 
     redrawMultiCanvasHistory();
@@ -3347,6 +3390,11 @@ function applyMultiRealtimeEvent(payload) {
   }
 
   if (payload.type === "music-note") {
+    const noteTs = Number(payload.ts || 0);
+    if (noteTs && state.multi.historyCutoff && noteTs < state.multi.historyCutoff - 4000) {
+      return;
+    }
+
     playMultiMusicNote(payload.noteId, false);
   }
 }
@@ -3373,6 +3421,7 @@ function connectMultiServer(forceReconnect = false) {
   }
 
   const connectToken = ++state.multi.connectToken;
+  state.multi.historyCutoff = Date.now();
   const streamUrl = `${getPresenceBaseUrl()}/__multi?clientId=${encodeURIComponent(state.presence.sessionId)}&name=${encodeURIComponent(state.presence.nickname)}`;
   const stream = new EventSource(streamUrl);
   state.multi.stream = stream;
@@ -3491,6 +3540,7 @@ function connectMultiRealtime(forceReconnect = false) {
   state.multi.sharedEvents = sharedEvents;
   state.multi.sharedBoundDoc = state.presence.peerDoc;
   state.multi.connected = true;
+  state.multi.historyCutoff = Date.now();
 
   sharedEvents.toArray().forEach((payload) => {
     if (payload && typeof payload === "object") {
@@ -3525,15 +3575,20 @@ function flushPendingMultiStrokeBroadcast(forceSend = false) {
     return;
   }
 
+  const activeTool = state.multi.activeTool || state.multi.tool || "brush";
+  const effectiveSize = activeTool === "eraser"
+    ? Math.max(10, Number(state.multi.brushSize || 4) + 6)
+    : state.multi.brushSize;
+
   state.multi.lastBroadcastAt = now;
   sendMultiRealtimeEvent({
-    type: "draw-stroke",
+    type: activeTool === "eraser" ? "erase-stroke" : "draw-stroke",
     points: pendingPoints.map((entry) => ({
       x: Number(entry.x.toFixed(4)),
       y: Number(entry.y.toFixed(4)),
     })),
     color: state.multi.brushColor,
-    size: state.multi.brushSize,
+    size: effectiveSize,
     ownerSessionId: state.presence.sessionId,
   }, false).catch(() => {});
 
@@ -3543,9 +3598,44 @@ function flushPendingMultiStrokeBroadcast(forceSend = false) {
 function setupMultiCanvas() {
   if (!el.multiCanvas) return;
 
-  const updateBrushSettings = () => {
-    state.multi.brushColor = el.multiCanvasColor?.value || "#ff4f7d";
+  const normalizeColorHex = (value, fallback = state.multi.brushColor || "#FF4F7D") => {
+    const raw = String(value || "").trim();
+    if (!raw) return String(fallback || "#FF4F7D").toUpperCase();
+    const cleaned = raw.startsWith("#") ? raw : `#${raw}`;
+    return /^#[0-9a-fA-F]{6}$/.test(cleaned)
+      ? cleaned.toUpperCase()
+      : String(fallback || "#FF4F7D").toUpperCase();
+  };
+
+  const updateBrushSettings = (forceSync = false) => {
+    const safeColor = normalizeColorHex(
+      el.multiCanvasColorHex?.value || el.multiCanvasColor?.value || state.multi.brushColor,
+      state.multi.brushColor,
+    );
+
+    state.multi.brushColor = safeColor;
     state.multi.brushSize = Number(el.multiCanvasSize?.value || 4);
+
+    if (el.multiCanvasColor && (forceSync || el.multiCanvasColor.value.toUpperCase() !== safeColor)) {
+      el.multiCanvasColor.value = safeColor;
+    }
+
+    if (el.multiCanvasColorHex && (forceSync || document.activeElement !== el.multiCanvasColorHex)) {
+      el.multiCanvasColorHex.value = safeColor.toUpperCase();
+    }
+
+    if (el.multiColorWheelCore) {
+      el.multiColorWheelCore.style.background = safeColor;
+    }
+
+    if (el.btnToggleMultiEraser) {
+      const eraserActive = state.multi.tool === "eraser";
+      el.btnToggleMultiEraser.classList.toggle("is-active", eraserActive);
+      el.btnToggleMultiEraser.setAttribute("aria-pressed", String(eraserActive));
+      el.btnToggleMultiEraser.textContent = eraserActive ? "🖌️ Revenir au pinceau" : "🧽 Gomme";
+    }
+
+    el.multiCanvas.dataset.tool = state.multi.tool;
   };
 
   const finishStroke = () => {
@@ -3555,6 +3645,7 @@ function setupMultiCanvas() {
     state.multi.activeStroke = [];
     state.multi.pendingBroadcastPoints = [];
     state.multi.lastPoint = null;
+    state.multi.activeTool = state.multi.tool;
   };
 
   const startStroke = (event) => {
@@ -3570,6 +3661,7 @@ function setupMultiCanvas() {
     };
 
     state.multi.drawing = true;
+    state.multi.activeTool = state.multi.tool;
     state.multi.lastPoint = compactPoint;
     state.multi.activeStroke = [compactPoint];
     state.multi.pendingBroadcastPoints = [compactPoint];
@@ -3595,16 +3687,27 @@ function setupMultiCanvas() {
     }
 
     const segment = [state.multi.lastPoint, compactPoint];
+    const activeTool = state.multi.activeTool || state.multi.tool;
 
-    drawMultiStrokePath(segment, state.multi.brushColor, state.multi.brushSize);
     state.multi.activeStroke.push(compactPoint);
     state.multi.pendingBroadcastPoints.push(compactPoint);
+
+    if (activeTool === "eraser") {
+      eraseOwnMultiStroke(segment, Math.max(10, state.multi.brushSize + 6), state.presence.sessionId);
+      flushPendingMultiStrokeBroadcast();
+      state.multi.lastPoint = compactPoint;
+      event.preventDefault();
+      return;
+    }
+
+    drawMultiStrokePath(segment, state.multi.brushColor, state.multi.brushSize);
     state.multi.canvasEvents.push({
       type: "draw-segment",
       points: segment,
       color: state.multi.brushColor,
       size: state.multi.brushSize,
       ownerSessionId: state.presence.sessionId,
+      ts: Date.now(),
     });
 
     if (state.multi.canvasEvents.length > 500) {
@@ -3622,8 +3725,17 @@ function setupMultiCanvas() {
   el.multiCanvas.addEventListener("pointerleave", finishStroke);
   el.multiCanvas.addEventListener("pointercancel", finishStroke);
 
-  el.multiCanvasColor?.addEventListener("input", updateBrushSettings);
+  el.multiCanvasColor?.addEventListener("input", () => updateBrushSettings(true));
+  el.multiCanvasColorHex?.addEventListener("input", () => updateBrushSettings(false));
+  el.multiCanvasColorHex?.addEventListener("change", () => updateBrushSettings(true));
+  el.multiCanvasColorHex?.addEventListener("blur", () => updateBrushSettings(true));
   el.multiCanvasSize?.addEventListener("input", updateBrushSettings);
+
+  el.btnToggleMultiEraser?.addEventListener("click", (event) => {
+    event.preventDefault();
+    state.multi.tool = state.multi.tool === "eraser" ? "brush" : "eraser";
+    updateBrushSettings(true);
+  });
 
   el.btnClearMultiCanvas?.addEventListener("click", (event) => {
     event.preventDefault();
@@ -3637,8 +3749,9 @@ function setupMultiCanvas() {
     }
   });
 
+  updateBrushSettings(true);
   syncMultiCanvasSize();
-  clearMultiCanvasSurface();
+  redrawMultiCanvasHistory();
 }
 
 function setupMultiScreen() {
