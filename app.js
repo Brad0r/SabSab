@@ -379,9 +379,9 @@ const PLAYER_MODES = {
 };
 
 const PEER_PRESENCE_ROOM = "sabsab-salon-public";
-const PEER_PRESENCE_TTL_MS = 45000;
-const PEER_PRESENCE_HEARTBEAT_MS = 15000;
-const PEER_PRESENCE_POLL_MS = 8000;
+const PEER_PRESENCE_TTL_MS = 12000;
+const PEER_PRESENCE_HEARTBEAT_MS = 4000;
+const PEER_PRESENCE_POLL_MS = 2500;
 const PUBLIC_PRESENCE_WEBHOOK_ID = "eb0e1985-838b-44b3-be24-5209929f010c";
 const PUBLIC_PRESENCE_POST_URL = `https://webhook.site/${PUBLIC_PRESENCE_WEBHOOK_ID}`;
 
@@ -540,6 +540,7 @@ const state = {
     peerPresenceMap: null,
     peerHeartbeatTimer: 0,
     peerPollTimer: 0,
+    refreshNow: null,
     connectToken: 0,
   },
   home: {
@@ -861,6 +862,8 @@ function closePresenceConnections() {
     state.presence.peerPollTimer = 0;
   }
 
+  state.presence.refreshNow = null;
+
   if (state.presence.peerPresenceMap) {
     try {
       state.presence.peerPresenceMap.delete(state.presence.sessionId);
@@ -1120,12 +1123,20 @@ async function connectPeerPresence() {
     updateOnlinePanel();
   };
 
-  try {
+  const syncPresenceNow = async () => {
     await postPresenceHeartbeat();
     await refreshPresenceUsers();
+  };
+
+  state.presence.refreshNow = () => {
+    syncPresenceNow().catch(() => {});
+  };
+
+  try {
+    await syncPresenceNow();
 
     state.presence.peerHeartbeatTimer = window.setInterval(() => {
-      postPresenceHeartbeat().catch(() => {});
+      syncPresenceNow().catch(() => {});
     }, PEER_PRESENCE_HEARTBEAT_MS);
 
     state.presence.peerPollTimer = window.setInterval(() => {
@@ -1208,6 +1219,11 @@ function setupThemeToggles() {
 }
 
 function setupPresence() {
+  const refreshPresenceImmediately = () => {
+    if (!state.presence.nickname || typeof state.presence.refreshNow !== "function") return;
+    state.presence.refreshNow();
+  };
+
   if (Array.isArray(el.onlineTriggers)) {
     el.onlineTriggers.forEach((button) => {
       button.addEventListener("click", (event) => {
@@ -1224,6 +1240,7 @@ function setupPresence() {
         }
         if (el.soundPanel && el.onlinePanel && !el.onlinePanel.hidden) {
           el.soundPanel.hidden = true;
+          refreshPresenceImmediately();
         }
         updateOnlinePanel();
       });
@@ -1267,6 +1284,16 @@ function setupPresence() {
   } else {
     openNicknameModal(false);
   }
+
+  window.addEventListener("focus", () => {
+    refreshPresenceImmediately();
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      refreshPresenceImmediately();
+    }
+  });
 
   window.addEventListener("beforeunload", () => {
     if (!shouldUsePresenceServer() && state.presence.nickname) {
