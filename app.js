@@ -575,6 +575,8 @@ const state = {
   multi: {
     connected: false,
     stream: null,
+    reconnectTimer: 0,
+    connectToken: 0,
     messages: [],
     seenEventIds: [],
     canvasEvents: [],
@@ -583,6 +585,7 @@ const state = {
     drawing: false,
     activeStroke: [],
     lastPoint: null,
+    lastBroadcastAt: 0,
   },
   home: {
     total: 0,
@@ -2430,7 +2433,7 @@ function drawMultiStrokePath(points, color = state.multi.brushColor, size = stat
 function redrawMultiCanvasHistory() {
   clearMultiCanvasSurface();
   state.multi.canvasEvents.forEach((entry) => {
-    if (entry?.type === "draw-stroke") {
+    if (entry?.type === "draw-stroke" || entry?.type === "draw-segment") {
       drawMultiStrokePath(entry.points, entry.color, entry.size);
     }
   });
@@ -2577,6 +2580,7 @@ async function sendMultiRealtimeEvent(payload, applyLocally = true) {
     rememberMultiEventId(eventPayload.id);
   }
 
+  const encodedMessage = encodeURIComponent(JSON.stringify(eventPayload));
   const response = await fetch(PUBLIC_MULTI_POST_URL, {
     method: "POST",
     mode: "cors",
@@ -2585,7 +2589,7 @@ async function sendMultiRealtimeEvent(payload, applyLocally = true) {
     headers: {
       "Content-Type": "text/plain;charset=UTF-8",
     },
-    body: JSON.stringify(eventPayload),
+    body: encodedMessage,
   });
 
   if (!response.ok) {
@@ -2595,10 +2599,7 @@ async function sendMultiRealtimeEvent(payload, applyLocally = true) {
   return eventPayload;
 }
 
-function playMultiMusicNote(noteId, shouldBroadcast = false) {
-  const note = MULTI_MUSIC_NOTES.find((entry) => entry.id === noteId);
-  if (!note) return;
-
+function ensureMultiToneContext(tryResume = false) {
   if (!multiToneContext) {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (AudioCtx) {
@@ -2606,21 +2607,30 @@ function playMultiMusicNote(noteId, shouldBroadcast = false) {
     }
   }
 
-  if (multiToneContext?.state === "suspended") {
+  if (tryResume && multiToneContext?.state === "suspended") {
     multiToneContext.resume().catch(() => {});
   }
 
-  if (multiToneContext) {
-    const now = multiToneContext.currentTime;
-    const oscillator = multiToneContext.createOscillator();
-    const gain = multiToneContext.createGain();
+  return multiToneContext;
+}
+
+function playMultiMusicNote(noteId, shouldBroadcast = false) {
+  const note = MULTI_MUSIC_NOTES.find((entry) => entry.id === noteId);
+  if (!note) return;
+
+  const toneContext = ensureMultiToneContext(shouldBroadcast);
+
+  if (toneContext) {
+    const now = toneContext.currentTime;
+    const oscillator = toneContext.createOscillator();
+    const gain = toneContext.createGain();
     oscillator.type = "triangle";
     oscillator.frequency.setValueAtTime(note.freq, now);
     gain.gain.setValueAtTime(0.0001, now);
     gain.gain.exponentialRampToValueAtTime(0.2, now + 0.03);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.8);
     oscillator.connect(gain);
-    gain.connect(multiToneContext.destination);
+    gain.connect(toneContext.destination);
     oscillator.start(now);
     oscillator.stop(now + 0.85);
   }
@@ -2638,7 +2648,7 @@ function playMultiMusicNote(noteId, shouldBroadcast = false) {
   }
 
   if (shouldBroadcast) {
-    sendMultiRealtimeEvent({ type: "music-note", noteId }).catch(() => {
+    sendMultiRealtimeEvent({ type: "music-note", noteId }, false).catch(() => {
       if (el.multiMusicHint) {
         el.multiMusicHint.textContent = `${note.label} a joué localement, mais l'envoi a raté.`;
       }
@@ -2669,26 +2679,29 @@ function applyMultiRealtimeEvent(payload) {
     return;
   }
 
-  if (payload.type === "draw-stroke") {
+  if (payload.type === "draw-stroke" || payload.type === "draw-segment") {
     if (!Array.isArray(payload.points) || payload.points.length < 2) return;
     state.multi.canvasEvents.push({
-      type: "draw-stroke",
+      type: payload.type,
       points: payload.points,
       color: payload.color || state.multi.brushColor,
       size: Number(payload.size || state.multi.brushSize),
+      ownerSessionId: payload.ownerSessionId || payload.sessionId || "",
     });
 
-    if (state.multi.canvasEvents.length > 160) {
-      state.multi.canvasEvents.splice(0, state.multi.canvasEvents.length - 160);
+    if (state.multi.canvasEvents.length > 500) {
+      state.multi.canvasEvents.splice(0, state.multi.canvasEvents.length - 500);
     }
 
     drawMultiStrokePath(payload.points, payload.color, payload.size);
     return;
   }
 
-  if (payload.type === "clear-canvas") {
-    state.multi.canvasEvents = [];
-    clearMultiCanvasSurface();
+  if (payload.type === "clear-own-canvas") {
+    const ownerSessionId = String(payload.ownerSessionId || payload.sessionId || "").trim();
+    if (!ownerSessionId) return;
+    state.multi.canvasEvents = state.multi.canvasEvents.filter((entry) => entry.ownerSessionId !== ownerSessionId);
+    redrawMultiCanvasHistory();
     return;
   }
 
@@ -2697,22 +2710,51 @@ function applyMultiRealtimeEvent(payload) {
   }
 }
 
-function connectMultiRealtime() {
-  if (state.multi.stream || typeof EventSource === "undefined") {
+function connectMultiRealtime(forceReconnect = false) {
+  if (typeof EventSource === "undefined") {
     renderMultiChatMessages();
     return;
   }
 
+  if (forceReconnect && state.multi.stream) {
+    try {
+      state.multi.stream.close();
+    } catch {
+      // ignore stream shutdown errors
+    }
+    state.multi.stream = null;
+  }
+
+  if (state.multi.reconnectTimer) {
+    window.clearTimeout(state.multi.reconnectTimer);
+    state.multi.reconnectTimer = 0;
+  }
+
+  if (state.multi.stream) {
+    renderMultiChatMessages();
+    return;
+  }
+
+  const connectToken = ++state.multi.connectToken;
   const stream = new EventSource(PUBLIC_MULTI_STREAM_URL);
   state.multi.stream = stream;
   state.multi.connected = false;
   renderMultiChatMessages();
 
   const handleEvent = (event) => {
+    if (state.multi.connectToken !== connectToken) return;
+
     try {
       const envelope = JSON.parse(event.data || "{}");
       if (envelope.event !== "message" || !envelope.message) return;
-      const payload = JSON.parse(envelope.message);
+
+      let payload = null;
+      try {
+        payload = JSON.parse(envelope.message);
+      } catch {
+        payload = JSON.parse(decodeURIComponent(envelope.message));
+      }
+
       state.multi.connected = true;
       applyMultiRealtimeEvent(payload);
       renderMultiChatMessages();
@@ -2722,6 +2764,7 @@ function connectMultiRealtime() {
   };
 
   stream.onopen = () => {
+    if (state.multi.connectToken !== connectToken) return;
     state.multi.connected = true;
     renderMultiChatMessages();
   };
@@ -2730,8 +2773,27 @@ function connectMultiRealtime() {
   stream.addEventListener?.("message", handleEvent);
 
   stream.onerror = () => {
+    if (state.multi.connectToken !== connectToken) return;
+
     state.multi.connected = false;
     renderMultiChatMessages();
+
+    try {
+      stream.close();
+    } catch {
+      // ignore stream shutdown errors
+    }
+
+    if (state.multi.stream === stream) {
+      state.multi.stream = null;
+    }
+
+    if (!state.multi.reconnectTimer) {
+      state.multi.reconnectTimer = window.setTimeout(() => {
+        state.multi.reconnectTimer = 0;
+        connectMultiRealtime(true);
+      }, 1200);
+    }
   };
 }
 
@@ -2746,34 +2808,6 @@ function setupMultiCanvas() {
   const finishStroke = () => {
     if (!state.multi.drawing) return;
     state.multi.drawing = false;
-
-    const stroke = Array.isArray(state.multi.activeStroke)
-      ? state.multi.activeStroke.map((point) => ({
-        x: Number(point.x.toFixed(4)),
-        y: Number(point.y.toFixed(4)),
-      }))
-      : [];
-
-    if (stroke.length > 1) {
-      state.multi.canvasEvents.push({
-        type: "draw-stroke",
-        points: stroke,
-        color: state.multi.brushColor,
-        size: state.multi.brushSize,
-      });
-
-      if (state.multi.canvasEvents.length > 160) {
-        state.multi.canvasEvents.splice(0, state.multi.canvasEvents.length - 160);
-      }
-
-      sendMultiRealtimeEvent({
-        type: "draw-stroke",
-        points: stroke,
-        color: state.multi.brushColor,
-        size: state.multi.brushSize,
-      }, false).catch(() => {});
-    }
-
     state.multi.activeStroke = [];
     state.multi.lastPoint = null;
   };
@@ -2788,6 +2822,7 @@ function setupMultiCanvas() {
     state.multi.drawing = true;
     state.multi.lastPoint = point;
     state.multi.activeStroke = [point];
+    state.multi.lastBroadcastAt = 0;
     el.multiCanvas.setPointerCapture?.(event.pointerId);
     event.preventDefault();
   };
@@ -2797,8 +2832,37 @@ function setupMultiCanvas() {
     const point = getNormalizedCanvasPoint(event);
     if (!point || !state.multi.lastPoint) return;
 
-    drawMultiStrokePath([state.multi.lastPoint, point], state.multi.brushColor, state.multi.brushSize);
+    const segment = [state.multi.lastPoint, point].map((entry) => ({
+      x: Number(entry.x.toFixed(4)),
+      y: Number(entry.y.toFixed(4)),
+    }));
+
+    drawMultiStrokePath(segment, state.multi.brushColor, state.multi.brushSize);
     state.multi.activeStroke.push(point);
+    state.multi.canvasEvents.push({
+      type: "draw-segment",
+      points: segment,
+      color: state.multi.brushColor,
+      size: state.multi.brushSize,
+      ownerSessionId: state.presence.sessionId,
+    });
+
+    if (state.multi.canvasEvents.length > 500) {
+      state.multi.canvasEvents.splice(0, state.multi.canvasEvents.length - 500);
+    }
+
+    const now = Date.now();
+    if (now - state.multi.lastBroadcastAt >= 35) {
+      state.multi.lastBroadcastAt = now;
+      sendMultiRealtimeEvent({
+        type: "draw-segment",
+        points: segment,
+        color: state.multi.brushColor,
+        size: state.multi.brushSize,
+        ownerSessionId: state.presence.sessionId,
+      }, false).catch(() => {});
+    }
+
     state.multi.lastPoint = point;
     event.preventDefault();
   };
@@ -2814,9 +2878,12 @@ function setupMultiCanvas() {
 
   el.btnClearMultiCanvas?.addEventListener("click", (event) => {
     event.preventDefault();
-    state.multi.canvasEvents = [];
-    clearMultiCanvasSurface();
-    sendMultiRealtimeEvent({ type: "clear-canvas" }, false).catch(() => {});
+    state.multi.canvasEvents = state.multi.canvasEvents.filter((entry) => entry.ownerSessionId !== state.presence.sessionId);
+    redrawMultiCanvasHistory();
+    sendMultiRealtimeEvent({
+      type: "clear-own-canvas",
+      ownerSessionId: state.presence.sessionId,
+    }, false).catch(() => {});
   });
 
   window.addEventListener("resize", () => {
@@ -2831,17 +2898,28 @@ function setupMultiCanvas() {
 }
 
 function setupMultiScreen() {
+  const activateMultiAudio = () => {
+    ensureMultiToneContext(true);
+  };
+
   connectMultiRealtime();
   setupMultiCanvas();
   renderMultiChatMessages();
 
+  window.addEventListener("online", () => {
+    connectMultiRealtime(true);
+  });
+
+  el.screenMulti?.addEventListener("pointerdown", activateMultiAudio, { passive: true });
+
   el.btnStartMulti?.addEventListener("click", (event) => {
     event.preventDefault();
+    activateMultiAudio();
     fadeTo(() => {
       setActiveScreen("multi");
       syncMultiCanvasSize();
       redrawMultiCanvasHistory();
-      connectMultiRealtime();
+      connectMultiRealtime(true);
     });
   });
 
