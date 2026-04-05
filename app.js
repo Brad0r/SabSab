@@ -665,6 +665,7 @@ const state = {
     reconnectTimer: 0,
     refreshNow: null,
     connectToken: 0,
+    isLeaving: false,
   },
   multi: {
     connected: false,
@@ -683,6 +684,7 @@ const state = {
     activeStroke: [],
     lastPoint: null,
     lastBroadcastAt: 0,
+    pendingBroadcastPoints: [],
   },
   home: {
     total: 0,
@@ -1000,6 +1002,40 @@ function clearMultiRetryTimer() {
   }
 
   state.multi.reconnectTimer = 0;
+}
+
+function notifyPresenceLeaveToServer() {
+  if (!state.presence.nickname || !shouldUsePresenceServer()) return;
+
+  const leaveUrl = `${getPresenceBaseUrl()}/__presence/leave`;
+  const payload = JSON.stringify({
+    clientId: state.presence.sessionId,
+    name: state.presence.nickname,
+  });
+
+  try {
+    if (navigator?.sendBeacon) {
+      const body = new Blob([payload], { type: "application/json" });
+      navigator.sendBeacon(leaveUrl, body);
+      return;
+    }
+  } catch {
+    // ignore beacon errors during page shutdown
+  }
+
+  try {
+    fetch(leaveUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: payload,
+      keepalive: true,
+      mode: "cors",
+    }).catch(() => {});
+  } catch {
+    // ignore keepalive fetch errors during page shutdown
+  }
 }
 
 function closePresenceConnections() {
@@ -1407,6 +1443,7 @@ function connectPresenceStream() {
   const connectToken = ++state.presence.connectToken;
   closePresenceConnections();
   state.presence.mode = "server";
+  state.presence.isLeaving = false;
 
   const presenceBaseUrl = getPresenceBaseUrl();
   const presenceUrl = `${presenceBaseUrl}/__presence?name=${encodeURIComponent(state.presence.nickname)}&clientId=${encodeURIComponent(state.presence.sessionId)}`;
@@ -1438,6 +1475,15 @@ function connectPresenceStream() {
     state.presence.connected = false;
     state.presence.users = [];
     updateOnlinePanel();
+
+    if (state.presence.isLeaving) {
+      try {
+        stream.close();
+      } catch {
+        // ignore stream close errors during shutdown
+      }
+      return;
+    }
 
     if (typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
       connectPeerPresence();
@@ -1539,7 +1585,17 @@ function setupPresence() {
   });
 
   const sendOfflinePresenceSignal = () => {
-    if (shouldUsePresenceServer() || !state.presence.nickname) return;
+    if (!state.presence.nickname) return;
+
+    state.presence.isLeaving = true;
+
+    if (shouldUsePresenceServer()) {
+      notifyPresenceLeaveToServer();
+      state.presence.users = state.presence.users.filter((user) => user?.clientId !== state.presence.sessionId);
+      state.presence.connected = false;
+      updateOnlinePanel();
+      return;
+    }
 
     try {
       state.presence.peerProviders?.forEach((provider) => {
@@ -1554,15 +1610,14 @@ function setupPresence() {
     }
   };
 
-  window.addEventListener("beforeunload", () => {
+  const shutdownPresence = () => {
     sendOfflinePresenceSignal();
     closePresenceConnections();
-  });
+  };
 
-  window.addEventListener("pagehide", () => {
-    sendOfflinePresenceSignal();
-    closePresenceConnections();
-  });
+  window.addEventListener("beforeunload", shutdownPresence);
+  window.addEventListener("pagehide", shutdownPresence);
+  window.addEventListener("unload", shutdownPresence);
 }
 
 function updateMuteButton() {
@@ -3044,7 +3099,7 @@ async function sendMultiRealtimeEvent(payload, applyLocally = true) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(eventPayload),
-      keepalive: payload.type !== "draw-segment",
+      keepalive: !String(payload.type || "").startsWith("draw-"),
       mode: "cors",
     });
 
@@ -3360,6 +3415,33 @@ function connectMultiRealtime(forceReconnect = false) {
   renderMultiChatMessages();
 }
 
+function flushPendingMultiStrokeBroadcast(forceSend = false) {
+  const pendingPoints = Array.isArray(state.multi.pendingBroadcastPoints)
+    ? state.multi.pendingBroadcastPoints.filter(Boolean)
+    : [];
+
+  if (pendingPoints.length < 2) return;
+
+  const now = Date.now();
+  if (!forceSend && now - state.multi.lastBroadcastAt < 55 && pendingPoints.length < 4) {
+    return;
+  }
+
+  state.multi.lastBroadcastAt = now;
+  sendMultiRealtimeEvent({
+    type: "draw-stroke",
+    points: pendingPoints.map((entry) => ({
+      x: Number(entry.x.toFixed(4)),
+      y: Number(entry.y.toFixed(4)),
+    })),
+    color: state.multi.brushColor,
+    size: state.multi.brushSize,
+    ownerSessionId: state.presence.sessionId,
+  }, false).catch(() => {});
+
+  state.multi.pendingBroadcastPoints = [pendingPoints[pendingPoints.length - 1]];
+}
+
 function setupMultiCanvas() {
   if (!el.multiCanvas) return;
 
@@ -3370,8 +3452,10 @@ function setupMultiCanvas() {
 
   const finishStroke = () => {
     if (!state.multi.drawing) return;
+    flushPendingMultiStrokeBroadcast(true);
     state.multi.drawing = false;
     state.multi.activeStroke = [];
+    state.multi.pendingBroadcastPoints = [];
     state.multi.lastPoint = null;
   };
 
@@ -3382,9 +3466,15 @@ function setupMultiCanvas() {
     const point = getNormalizedCanvasPoint(event);
     if (!point) return;
 
+    const compactPoint = {
+      x: Number(point.x.toFixed(4)),
+      y: Number(point.y.toFixed(4)),
+    };
+
     state.multi.drawing = true;
-    state.multi.lastPoint = point;
-    state.multi.activeStroke = [point];
+    state.multi.lastPoint = compactPoint;
+    state.multi.activeStroke = [compactPoint];
+    state.multi.pendingBroadcastPoints = [compactPoint];
     state.multi.lastBroadcastAt = 0;
     el.multiCanvas.setPointerCapture?.(event.pointerId);
     event.preventDefault();
@@ -3395,13 +3485,22 @@ function setupMultiCanvas() {
     const point = getNormalizedCanvasPoint(event);
     if (!point || !state.multi.lastPoint) return;
 
-    const segment = [state.multi.lastPoint, point].map((entry) => ({
-      x: Number(entry.x.toFixed(4)),
-      y: Number(entry.y.toFixed(4)),
-    }));
+    const compactPoint = {
+      x: Number(point.x.toFixed(4)),
+      y: Number(point.y.toFixed(4)),
+    };
+
+    const deltaX = compactPoint.x - state.multi.lastPoint.x;
+    const deltaY = compactPoint.y - state.multi.lastPoint.y;
+    if ((deltaX * deltaX) + (deltaY * deltaY) < 0.000003) {
+      return;
+    }
+
+    const segment = [state.multi.lastPoint, compactPoint];
 
     drawMultiStrokePath(segment, state.multi.brushColor, state.multi.brushSize);
-    state.multi.activeStroke.push(point);
+    state.multi.activeStroke.push(compactPoint);
+    state.multi.pendingBroadcastPoints.push(compactPoint);
     state.multi.canvasEvents.push({
       type: "draw-segment",
       points: segment,
@@ -3414,19 +3513,8 @@ function setupMultiCanvas() {
       state.multi.canvasEvents.splice(0, state.multi.canvasEvents.length - 500);
     }
 
-    const now = Date.now();
-    if (now - state.multi.lastBroadcastAt >= 35) {
-      state.multi.lastBroadcastAt = now;
-      sendMultiRealtimeEvent({
-        type: "draw-segment",
-        points: segment,
-        color: state.multi.brushColor,
-        size: state.multi.brushSize,
-        ownerSessionId: state.presence.sessionId,
-      }, false).catch(() => {});
-    }
-
-    state.multi.lastPoint = point;
+    flushPendingMultiStrokeBroadcast();
+    state.multi.lastPoint = compactPoint;
     event.preventDefault();
   };
 

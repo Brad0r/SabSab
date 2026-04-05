@@ -3,6 +3,7 @@ const http = require('http');
 const PORT = Number(process.env.PORT) || 3000;
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || '*';
 const PRESENCE_ROUTE = '/__presence';
+const PRESENCE_LEAVE_ROUTE = `${PRESENCE_ROUTE}/leave`;
 const MULTI_ROUTE = '/__multi';
 const MAX_MULTI_HISTORY = 800;
 const presenceClients = new Set();
@@ -66,6 +67,28 @@ function broadcastPresence() {
   }
 }
 
+function removePresenceClient(clientId, forceRemove = false) {
+  const safeClientId = String(clientId || '').trim();
+  if (!safeClientId) return;
+
+  const currentEntry = presenceUsers.get(safeClientId);
+  if (!currentEntry) {
+    broadcastPresence();
+    return;
+  }
+
+  if (forceRemove || currentEntry.count <= 1) {
+    presenceUsers.delete(safeClientId);
+  } else {
+    presenceUsers.set(safeClientId, {
+      ...currentEntry,
+      count: Math.max(0, currentEntry.count - 1),
+    });
+  }
+
+  broadcastPresence();
+}
+
 function registerPresenceClient(req, res) {
   const requestUrl = new URL(req.url || PRESENCE_ROUTE, `http://${req.headers.host || `localhost:${PORT}`}`);
   const clientId = (requestUrl.searchParams.get('clientId') || '').trim();
@@ -90,23 +113,7 @@ function registerPresenceClient(req, res) {
   req.on('close', () => {
     clearInterval(keepAlive);
     presenceClients.delete(res);
-
-    const currentEntry = presenceUsers.get(clientId);
-    if (!currentEntry) {
-      broadcastPresence();
-      return;
-    }
-
-    if (currentEntry.count <= 1) {
-      presenceUsers.delete(clientId);
-    } else {
-      presenceUsers.set(clientId, {
-        ...currentEntry,
-        count: currentEntry.count - 1,
-      });
-    }
-
-    broadcastPresence();
+    removePresenceClient(clientId);
   });
 }
 
@@ -237,6 +244,33 @@ async function handleMultiPublish(req, res) {
   }
 }
 
+async function handlePresenceLeave(req, res) {
+  try {
+    const requestUrl = new URL(req.url || PRESENCE_LEAVE_ROUTE, `http://${req.headers.host || `localhost:${PORT}`}`);
+    const rawBody = await readRequestBody(req);
+    let parsedBody = null;
+
+    if (rawBody) {
+      try {
+        parsedBody = JSON.parse(rawBody);
+      } catch {
+        parsedBody = null;
+      }
+    }
+
+    const clientId = String(parsedBody?.clientId || requestUrl.searchParams.get('clientId') || '').trim();
+    if (!clientId) {
+      sendJson(res, 400, { ok: false, error: 'Identifiant manquant.' });
+      return;
+    }
+
+    removePresenceClient(clientId, true);
+    sendJson(res, 202, { ok: true, clientId });
+  } catch (error) {
+    sendJson(res, 500, { ok: false, error: error?.message || 'Impossible de fermer la présence.' });
+  }
+}
+
 const server = http.createServer(async (req, res) => {
   const method = (req.method || 'GET').toUpperCase();
   const requestUrl = req.url || '/';
@@ -245,6 +279,11 @@ const server = http.createServer(async (req, res) => {
     setCorsHeaders(res);
     res.writeHead(204);
     res.end();
+    return;
+  }
+
+  if (method === 'POST' && requestUrl.startsWith(PRESENCE_LEAVE_ROUTE)) {
+    await handlePresenceLeave(req, res);
     return;
   }
 
@@ -276,7 +315,7 @@ const server = http.createServer(async (req, res) => {
   sendJson(res, 200, {
     ok: true,
     service: 'sabsab-live-presence',
-    routes: [PRESENCE_ROUTE, MULTI_ROUTE, `${MULTI_ROUTE}/publish`, '/health'],
+    routes: [PRESENCE_ROUTE, PRESENCE_LEAVE_ROUTE, MULTI_ROUTE, `${MULTI_ROUTE}/publish`, '/health'],
   });
 });
 

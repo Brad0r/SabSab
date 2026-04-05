@@ -6,6 +6,7 @@ const PORT = Number(process.env.PORT) || 5500;
 const ROOT = __dirname;
 const LIVE_RELOAD_ROUTE = '/__events';
 const PRESENCE_ROUTE = '/__presence';
+const PRESENCE_LEAVE_ROUTE = `${PRESENCE_ROUTE}/leave`;
 const MULTI_ROUTE = '/__multi';
 const MAX_MULTI_HISTORY = 800;
 const reloadClients = new Set();
@@ -168,6 +169,28 @@ function broadcastPresence() {
   }
 }
 
+function removePresenceClient(clientId, forceRemove = false) {
+  const safeClientId = String(clientId || '').trim();
+  if (!safeClientId) return;
+
+  const currentEntry = presenceUsers.get(safeClientId);
+  if (!currentEntry) {
+    broadcastPresence();
+    return;
+  }
+
+  if (forceRemove || currentEntry.count <= 1) {
+    presenceUsers.delete(safeClientId);
+  } else {
+    presenceUsers.set(safeClientId, {
+      ...currentEntry,
+      count: Math.max(0, currentEntry.count - 1),
+    });
+  }
+
+  broadcastPresence();
+}
+
 function registerPresenceClient(req, res) {
   const requestUrl = new URL(req.url || PRESENCE_ROUTE, `http://${req.headers.host || `localhost:${PORT}`}`);
   const clientId = (requestUrl.searchParams.get('clientId') || '').trim();
@@ -199,23 +222,7 @@ function registerPresenceClient(req, res) {
 
   req.on('close', () => {
     presenceClients.delete(res);
-
-    const currentEntry = presenceUsers.get(clientId);
-    if (!currentEntry) {
-      broadcastPresence();
-      return;
-    }
-
-    if (currentEntry.count <= 1) {
-      presenceUsers.delete(clientId);
-    } else {
-      presenceUsers.set(clientId, {
-        ...currentEntry,
-        count: currentEntry.count - 1,
-      });
-    }
-
-    broadcastPresence();
+    removePresenceClient(clientId);
   });
 }
 
@@ -337,6 +344,37 @@ async function handleMultiPublish(req, res) {
   }
 }
 
+async function handlePresenceLeave(req, res) {
+  try {
+    const requestUrl = new URL(req.url || PRESENCE_LEAVE_ROUTE, `http://${req.headers.host || `localhost:${PORT}`}`);
+    const rawBody = await readRequestBody(req);
+    let parsedBody = null;
+
+    if (rawBody) {
+      try {
+        parsedBody = JSON.parse(rawBody);
+      } catch {
+        parsedBody = null;
+      }
+    }
+
+    const clientId = String(parsedBody?.clientId || requestUrl.searchParams.get('clientId') || '').trim();
+    if (!clientId) {
+      sendText(res, 400, 'Identifiant manquant.');
+      return;
+    }
+
+    removePresenceClient(clientId, true);
+    res.writeHead(202, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-cache',
+    });
+    res.end(JSON.stringify({ ok: true, clientId }));
+  } catch (error) {
+    sendText(res, 500, error?.message || 'Impossible de fermer la présence.');
+  }
+}
+
 function shouldTriggerReload(filename) {
   if (!filename) {
     return false;
@@ -355,7 +393,12 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  if ((req.url || '').startsWith(PRESENCE_ROUTE)) {
+  if ((req.method || 'GET').toUpperCase() === 'POST' && (req.url || '').startsWith(PRESENCE_LEAVE_ROUTE)) {
+    await handlePresenceLeave(req, res);
+    return;
+  }
+
+  if ((req.method || 'GET').toUpperCase() === 'GET' && (req.url || '').startsWith(PRESENCE_ROUTE)) {
     registerPresenceClient(req, res);
     return;
   }
