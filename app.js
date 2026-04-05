@@ -381,6 +381,14 @@ const PLAYER_MODES = {
 const PEER_PRESENCE_ROOM = "sabsab-salon-public";
 const PEER_PRESENCE_TTL_MS = 45000;
 const PEER_PRESENCE_HEARTBEAT_MS = 15000;
+const PEER_PRESENCE_POLL_MS = 8000;
+const PUBLIC_PRESENCE_WEBHOOK_ID = "eb0e1985-838b-44b3-be24-5209929f010c";
+const PUBLIC_PRESENCE_POST_URL = `https://webhook.site/${PUBLIC_PRESENCE_WEBHOOK_ID}`;
+
+function getPublicPresenceReadUrl() {
+  const targetUrl = `https://webhook.site/token/${PUBLIC_PRESENCE_WEBHOOK_ID}/requests?sorting=newest&page=1&_=${Date.now()}`;
+  return `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+}
 
 function readSavedTheme() {
   try {
@@ -531,6 +539,7 @@ const state = {
     peerDoc: null,
     peerPresenceMap: null,
     peerHeartbeatTimer: 0,
+    peerPollTimer: 0,
     connectToken: 0,
   },
   home: {
@@ -843,6 +852,15 @@ function closePresenceConnections() {
     state.presence.peerHeartbeatTimer = 0;
   }
 
+  if (state.presence.peerPollTimer) {
+    try {
+      window.clearInterval(state.presence.peerPollTimer);
+    } catch {
+      // ignore timer shutdown errors
+    }
+    state.presence.peerPollTimer = 0;
+  }
+
   if (state.presence.peerPresenceMap) {
     try {
       state.presence.peerPresenceMap.delete(state.presence.sessionId);
@@ -1014,104 +1032,105 @@ async function connectPeerPresence() {
   state.presence.users = [{ id: state.presence.sessionId, name: state.presence.nickname }];
   updateOnlinePanel();
 
-  try {
-    const { Y, WebsocketProvider, WebrtcProvider } = await loadPeerPresenceLibs();
+  const postPresenceHeartbeat = async (status = "online", useBeacon = false) => {
     if (state.presence.connectToken !== connectToken) return;
 
-    const doc = new Y.Doc();
-    const presenceMap = doc.getMap("presence");
-    const providers = [
-      new WebsocketProvider("wss://demos.yjs.dev", PEER_PRESENCE_ROOM, doc),
-      new WebrtcProvider(PEER_PRESENCE_ROOM, doc, {
-        signaling: ["wss://signaling.yjs.dev", "wss://signaling.y-webrtc.com"],
-      }),
-    ];
+    const params = new URLSearchParams({
+      site: "sabsab",
+      room: PEER_PRESENCE_ROOM,
+      sessionId: state.presence.sessionId,
+      clientId: state.presence.clientId,
+      name: state.presence.nickname,
+      status,
+      ts: String(Date.now()),
+    });
 
-    state.presence.peerDoc = doc;
-    state.presence.peerProviders = providers;
-    state.presence.peerPresenceMap = presenceMap;
-
-    const writeLocalPresence = () => {
-      if (state.presence.connectToken !== connectToken) return;
-
-      presenceMap.set(state.presence.sessionId, {
-        id: state.presence.sessionId,
-        clientId: state.presence.clientId,
-        name: state.presence.nickname,
-        lastSeen: Date.now(),
-      });
-    };
-
-    const syncPeerUsers = () => {
-      if (state.presence.connectToken !== connectToken) return;
-
-      const now = Date.now();
-      const nextUsers = [];
-
-      presenceMap.forEach((value, key) => {
-        const lastSeen = Number(value?.lastSeen || 0);
-        if (lastSeen && now - lastSeen > PEER_PRESENCE_TTL_MS) {
-          if (key !== state.presence.sessionId) {
-            try {
-              presenceMap.delete(key);
-            } catch {
-              // ignore stale shared-room cleanup errors
-            }
-          }
-          return;
-        }
-
-        const normalizedUser = normalizePresenceUser({ ...value, id: value?.id || key }, key);
-        if (normalizedUser) {
-          nextUsers.push(normalizedUser);
-        }
-      });
-
-      if (!nextUsers.some((user) => user.id === state.presence.sessionId)) {
-        nextUsers.push({ id: state.presence.sessionId, name: state.presence.nickname });
-      }
-
-      state.presence.users = getSortedPresenceUsers(nextUsers);
-      rememberSeenNicknames([state.presence.nickname, ...state.presence.users.map((user) => user.name)]);
-      state.presence.connected = providers.some((provider) => Boolean(provider?.wsconnected || provider?.connected || provider?.synced));
-      updateOnlinePanel();
-    };
-
-    providers.forEach((provider) => {
-      provider.on?.("status", (event) => {
-        if (state.presence.connectToken !== connectToken) return;
-        state.presence.connected = event?.status === "connected"
-          || providers.some((candidate) => Boolean(candidate?.wsconnected || candidate?.connected || candidate?.synced));
-        writeLocalPresence();
-        syncPeerUsers();
-      });
-
-      provider.on?.("sync", () => {
-        writeLocalPresence();
-        syncPeerUsers();
-      });
-
+    if (useBeacon && navigator?.sendBeacon) {
       try {
-        provider.awareness?.setLocalStateField("user", {
-          name: state.presence.nickname,
-          clientId: state.presence.sessionId,
-        });
+        navigator.sendBeacon(PUBLIC_PRESENCE_POST_URL, params);
+        return;
       } catch {
-        // ignore awareness sync errors, presence is stored in the shared doc map
+        // fallback to fetch below
+      }
+    }
+
+    await fetch(PUBLIC_PRESENCE_POST_URL, {
+      method: "POST",
+      mode: "cors",
+      cache: "no-store",
+      keepalive: true,
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+      },
+      body: params.toString(),
+    });
+  };
+
+  const refreshPresenceUsers = async () => {
+    if (state.presence.connectToken !== connectToken) return;
+
+    const response = await fetch(getPublicPresenceReadUrl(), {
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      throw new Error(`Presence read failed (${response.status})`);
+    }
+
+    const proxyPayload = await response.json();
+    const relayPayload = JSON.parse(proxyPayload?.contents || "{}");
+    const requestEntries = Array.isArray(relayPayload?.data) ? relayPayload.data : [];
+    const now = Date.now();
+    const sessions = new Map();
+
+    requestEntries.forEach((entry) => {
+      if ((entry?.method || "").toUpperCase() !== "POST") return;
+
+      const request = entry?.request;
+      if (!request || request.site !== "sabsab" || request.room !== PEER_PRESENCE_ROOM) return;
+
+      const sessionId = String(request.sessionId || "").trim();
+      const userName = sanitizeNickname(request.name);
+      const status = String(request.status || "online").trim().toLowerCase();
+      const timestamp = Number(request.ts || 0);
+
+      if (!sessionId || !userName || !Number.isFinite(timestamp)) return;
+
+      const previous = sessions.get(sessionId);
+      if (!previous || timestamp > previous.lastSeen) {
+        sessions.set(sessionId, {
+          id: sessionId,
+          name: userName,
+          lastSeen: timestamp,
+          status,
+        });
       }
     });
 
-    presenceMap.observe(() => {
-      syncPeerUsers();
-    });
+    const nextUsers = [...sessions.values()]
+      .filter((entry) => entry.status !== "offline" && now - entry.lastSeen <= PEER_PRESENCE_TTL_MS)
+      .map(({ id, name }) => ({ id, name }));
 
-    writeLocalPresence();
-    syncPeerUsers();
+    if (!nextUsers.some((user) => user.id === state.presence.sessionId)) {
+      nextUsers.push({ id: state.presence.sessionId, name: state.presence.nickname });
+    }
+
+    state.presence.users = getSortedPresenceUsers(nextUsers);
+    rememberSeenNicknames([state.presence.nickname, ...state.presence.users.map((user) => user.name)]);
+    state.presence.connected = true;
+    updateOnlinePanel();
+  };
+
+  try {
+    await postPresenceHeartbeat();
+    await refreshPresenceUsers();
 
     state.presence.peerHeartbeatTimer = window.setInterval(() => {
-      writeLocalPresence();
-      syncPeerUsers();
+      postPresenceHeartbeat().catch(() => {});
     }, PEER_PRESENCE_HEARTBEAT_MS);
+
+    state.presence.peerPollTimer = window.setInterval(() => {
+      refreshPresenceUsers().catch(() => {});
+    }, PEER_PRESENCE_POLL_MS);
   } catch (error) {
     if (state.presence.connectToken !== connectToken) return;
 
@@ -1250,10 +1269,46 @@ function setupPresence() {
   }
 
   window.addEventListener("beforeunload", () => {
+    if (!shouldUsePresenceServer() && state.presence.nickname) {
+      const params = new URLSearchParams({
+        site: "sabsab",
+        room: PEER_PRESENCE_ROOM,
+        sessionId: state.presence.sessionId,
+        clientId: state.presence.clientId,
+        name: state.presence.nickname,
+        status: "offline",
+        ts: String(Date.now()),
+      });
+
+      try {
+        navigator.sendBeacon?.(PUBLIC_PRESENCE_POST_URL, params);
+      } catch {
+        // ignore unload presence errors
+      }
+    }
+
     closePresenceConnections();
   });
 
   window.addEventListener("pagehide", () => {
+    if (!shouldUsePresenceServer() && state.presence.nickname) {
+      const params = new URLSearchParams({
+        site: "sabsab",
+        room: PEER_PRESENCE_ROOM,
+        sessionId: state.presence.sessionId,
+        clientId: state.presence.clientId,
+        name: state.presence.nickname,
+        status: "offline",
+        ts: String(Date.now()),
+      });
+
+      try {
+        navigator.sendBeacon?.(PUBLIC_PRESENCE_POST_URL, params);
+      } catch {
+        // ignore unload presence errors
+      }
+    }
+
     closePresenceConnections();
   });
 }
