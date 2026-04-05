@@ -603,7 +603,7 @@ async function loadPeerPresenceLibs() {
   if (!peerPresenceLibsPromise) {
     peerPresenceLibsPromise = (async () => {
       try {
-        const [Y, websocketModule, webrtcModule] = await Promise.all([
+        const [Y, websocketModule] = await Promise.all([
           importPeerModule([
             "https://esm.sh/yjs@13.6.18?bundle",
             "https://cdn.jsdelivr.net/npm/yjs@13.6.18/+esm",
@@ -612,16 +612,11 @@ async function loadPeerPresenceLibs() {
             "https://esm.sh/y-websocket@1.5.4?bundle",
             "https://cdn.jsdelivr.net/npm/y-websocket@1.5.4/+esm",
           ]),
-          importPeerModule([
-            "https://esm.sh/y-webrtc@10.3.0?bundle",
-            "https://cdn.jsdelivr.net/npm/y-webrtc@10.3.0/+esm",
-          ]),
         ]);
 
         return {
           Y,
           WebsocketProvider: websocketModule.WebsocketProvider,
-          WebrtcProvider: webrtcModule.WebrtcProvider,
         };
       } catch (error) {
         peerPresenceLibsPromise = null;
@@ -1022,7 +1017,11 @@ function closePresenceConnections() {
 
   if (state.presence.peerPresenceMap) {
     try {
-      state.presence.peerPresenceMap.delete(state.presence.sessionId);
+      if (typeof state.presence.peerPresenceMap.setLocalState === "function") {
+        state.presence.peerPresenceMap.setLocalState(null);
+      } else {
+        state.presence.peerPresenceMap.delete?.(state.presence.sessionId);
+      }
     } catch {
       // ignore shared-room cleanup errors
     }
@@ -1212,57 +1211,48 @@ async function connectPeerPresence() {
   };
 
   try {
-    const { Y, WebsocketProvider, WebrtcProvider } = await loadPeerPresenceLibs();
+    const { Y, WebsocketProvider } = await loadPeerPresenceLibs();
     if (state.presence.connectToken !== connectToken) return;
 
     const doc = new Y.Doc();
-    const presenceMap = doc.getMap("presence");
-    const providers = [
-      new WebsocketProvider("wss://demos.yjs.dev", PEER_PRESENCE_ROOM, doc),
-      new WebrtcProvider(PEER_PRESENCE_ROOM, doc, {
-        signaling: ["wss://signaling.yjs.dev", "wss://signaling.y-webrtc.com"],
-      }),
-    ];
+    const websocketProvider = new WebsocketProvider("wss://demos.yjs.dev", PEER_PRESENCE_ROOM, doc);
+    const providers = [websocketProvider];
+    const awareness = websocketProvider.awareness;
 
     providers.forEach((provider) => {
       provider.__sabsabStatus = "connecting";
     });
 
     state.presence.peerDoc = doc;
-    state.presence.peerPresenceMap = presenceMap;
+    state.presence.peerPresenceMap = awareness;
     state.presence.peerProviders = providers;
 
-    const syncUsersFromPresenceMap = () => {
+    const syncUsersFromAwareness = () => {
       if (state.presence.connectToken !== connectToken) return;
 
-      const now = Date.now();
       const nextUsers = [];
 
-      presenceMap.forEach((entry, sessionId) => {
-        if (!entry || typeof entry !== "object") return;
+      providers.forEach((provider) => {
+        const awarenessStates = provider?.awareness?.getStates?.();
+        if (!awarenessStates || typeof awarenessStates.forEach !== "function") return;
 
-        const timestamp = Number(entry.lastSeen || 0);
-        const status = String(entry.status || "online").trim().toLowerCase();
-        if (status === "offline" || (timestamp && now - timestamp > PEER_PRESENCE_TTL_MS)) {
-          if (sessionId !== state.presence.sessionId) {
-            try {
-              presenceMap.delete(sessionId);
-            } catch {
-              // ignore stale shared presence cleanup errors
-            }
+        awarenessStates.forEach((rawState, awarenessClientId) => {
+          const entry = rawState?.presence && typeof rawState.presence === "object"
+            ? rawState.presence
+            : rawState;
+
+          if (!entry || typeof entry !== "object") return;
+
+          const normalizedUser = normalizePresenceUser({
+            id: String(entry.id || entry.sessionId || awarenessClientId),
+            clientId: String(entry.clientId || entry.id || entry.sessionId || awarenessClientId),
+            name: entry.name,
+          }, String(entry.id || entry.sessionId || awarenessClientId));
+
+          if (normalizedUser) {
+            nextUsers.push(normalizedUser);
           }
-          return;
-        }
-
-        const normalizedUser = normalizePresenceUser({
-          id: String(entry.id || sessionId),
-          clientId: entry.clientId,
-          name: entry.name,
-        }, String(sessionId));
-
-        if (normalizedUser) {
-          nextUsers.push(normalizedUser);
-        }
+        });
       });
 
       if (!nextUsers.some((user) => user.id === state.presence.sessionId)) {
@@ -1275,24 +1265,26 @@ async function connectPeerPresence() {
 
       state.presence.users = getSortedPresenceUsers(nextUsers);
       rememberSeenNicknames([state.presence.nickname, ...state.presence.users.map((user) => user.name)]);
-      state.presence.connected = isAnyProviderLive();
+      state.presence.connected = isAnyProviderLive() || state.presence.users.length > 0;
       updateOnlinePanel();
       connectMultiRealtime();
     };
 
-    const publishLocalPresence = (status = "online") => {
+    const publishLocalPresence = () => {
       if (state.presence.connectToken !== connectToken) return;
 
-      presenceMap.set(state.presence.sessionId, {
-        id: state.presence.sessionId,
-        clientId: state.presence.clientId,
-        name: state.presence.nickname,
-        status,
-        lastSeen: Date.now(),
+      providers.forEach((provider) => {
+        provider?.awareness?.setLocalStateField?.("presence", {
+          id: state.presence.sessionId,
+          sessionId: state.presence.sessionId,
+          clientId: state.presence.clientId,
+          name: state.presence.nickname,
+          lastSeen: Date.now(),
+        });
       });
     };
 
-    presenceMap.observe(syncUsersFromPresenceMap);
+    awareness?.on?.("change", syncUsersFromAwareness);
 
     providers.forEach((provider) => {
       provider.on?.("status", (event) => {
@@ -1304,7 +1296,7 @@ async function connectPeerPresence() {
         if (nextStatus === "connected") {
           clearPresenceRetryTimer();
           publishLocalPresence();
-          syncUsersFromPresenceMap();
+          syncUsersFromAwareness();
           return;
         }
 
@@ -1315,31 +1307,36 @@ async function connectPeerPresence() {
           schedulePresenceRetry();
         }
       });
+
       provider.on?.("sync", (isSynced) => {
         if (state.presence.connectToken !== connectToken) return;
         if (isSynced === false) return;
+        provider.__sabsabStatus = "connected";
         clearPresenceRetryTimer();
         publishLocalPresence();
-        syncUsersFromPresenceMap();
+        syncUsersFromAwareness();
       });
     });
 
     state.presence.refreshNow = () => {
       publishLocalPresence();
-      syncUsersFromPresenceMap();
+      syncUsersFromAwareness();
     };
 
     publishLocalPresence();
-    syncUsersFromPresenceMap();
+    syncUsersFromAwareness();
     connectMultiRealtime(true);
 
     state.presence.peerHeartbeatTimer = window.setInterval(() => {
       publishLocalPresence();
-      syncUsersFromPresenceMap();
+      syncUsersFromAwareness();
     }, PEER_PRESENCE_HEARTBEAT_MS);
 
     state.presence.peerPollTimer = window.setInterval(() => {
-      syncUsersFromPresenceMap();
+      if (!isAnyProviderLive()) {
+        schedulePresenceRetry();
+      }
+      syncUsersFromAwareness();
     }, PEER_PRESENCE_POLL_MS);
   } catch (error) {
     if (state.presence.connectToken !== connectToken) return;
@@ -1505,14 +1502,13 @@ function setupPresence() {
     if (shouldUsePresenceServer() || !state.presence.nickname) return;
 
     try {
-      state.presence.peerPresenceMap?.set?.(state.presence.sessionId, {
-        id: state.presence.sessionId,
-        clientId: state.presence.clientId,
-        name: state.presence.nickname,
-        status: "offline",
-        lastSeen: Date.now(),
+      state.presence.peerProviders?.forEach((provider) => {
+        provider?.awareness?.setLocalState?.(null);
       });
-      state.presence.peerPresenceMap?.delete?.(state.presence.sessionId);
+
+      if (typeof state.presence.peerPresenceMap?.setLocalState === "function") {
+        state.presence.peerPresenceMap.setLocalState(null);
+      }
     } catch {
       // ignore unload presence errors
     }
