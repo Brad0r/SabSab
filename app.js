@@ -494,10 +494,10 @@ async function loadPeerPresenceLibs() {
   if (!peerPresenceLibsPromise) {
     peerPresenceLibsPromise = Promise.all([
       import("https://esm.sh/yjs@13.6.18?bundle"),
-      import("https://esm.sh/y-webrtc@10.3.0?bundle"),
-    ]).then(([Y, webrtcModule]) => ({
+      import("https://esm.sh/y-websocket@1.5.4?bundle"),
+    ]).then(([Y, websocketModule]) => ({
       Y,
-      WebrtcProvider: webrtcModule.WebrtcProvider,
+      WebsocketProvider: websocketModule.WebsocketProvider,
     }));
   }
 
@@ -774,11 +774,26 @@ function toggleTheme(forceTheme) {
   saveThemePreference();
 }
 
+function normalizePresenceUser(userEntry, fallbackId = "") {
+  if (typeof userEntry === "string") {
+    const safeName = sanitizeNickname(userEntry);
+    return safeName ? { id: fallbackId || safeName, name: safeName } : null;
+  }
+
+  if (!userEntry || typeof userEntry !== "object") return null;
+
+  const safeName = sanitizeNickname(userEntry.name || userEntry.nickname);
+  const safeId = String(userEntry.id || userEntry.clientId || fallbackId || safeName || "");
+  if (!safeName) return null;
+
+  return { id: safeId, name: safeName };
+}
+
 function getSortedPresenceUsers(userList) {
-  return [...new Set((userList || [])
-    .map(sanitizeNickname)
-    .filter(Boolean))]
-    .sort((a, b) => a.localeCompare(b, "fr", { sensitivity: "base" }));
+  return (Array.isArray(userList) ? userList : [])
+    .map((entry, index) => normalizePresenceUser(entry, `presence-${index}`))
+    .filter(Boolean)
+    .sort((a, b) => a.name.localeCompare(b.name, "fr", { sensitivity: "base" }));
 }
 
 function closePresenceConnections() {
@@ -814,14 +829,26 @@ function closePresenceConnections() {
 function updateOnlinePanel() {
   if (!el.onlineStatus || !el.onlineCount || !el.onlineUsersList) return;
 
+  const sourceUsers = Array.isArray(state.presence.users) ? [...state.presence.users] : [];
+  const hasCurrentUser = sourceUsers.some((entry, index) => {
+    const normalizedUser = normalizePresenceUser(entry, `presence-${index}`);
+    return normalizedUser && (
+      normalizedUser.id === state.presence.clientId
+      || normalizedUser.name === state.presence.nickname
+    );
+  });
+
   const liveUsers = getSortedPresenceUsers(
-    state.presence.mode === "p2p" && state.presence.nickname
-      ? [state.presence.nickname, ...(state.presence.users || [])]
-      : (state.presence.users || [])
+    state.presence.mode === "shared" && state.presence.nickname && !hasCurrentUser
+      ? [{ id: state.presence.clientId, name: state.presence.nickname }, ...sourceUsers]
+      : sourceUsers
   );
 
-  const knownUsers = rememberSeenNicknames([state.presence.nickname, ...liveUsers]);
-  const displayUsers = knownUsers.length ? knownUsers : liveUsers;
+  const liveUserNames = liveUsers.map((user) => user.name);
+  const knownUsers = rememberSeenNicknames([state.presence.nickname, ...liveUserNames]);
+  const displayUsers = liveUsers.length
+    ? liveUsers
+    : knownUsers.map((name, index) => ({ id: `known-${index}-${name}`, name }));
   const count = liveUsers.length;
 
   el.onlineCount.textContent = `${count} connecté${count > 1 ? "s" : ""}`;
@@ -829,10 +856,10 @@ function updateOnlinePanel() {
   if (!state.presence.nickname) {
     el.onlineStatus.textContent = "Choisis ton pseudo pour apparaître en direct.";
   } else if (state.presence.connected) {
-    el.onlineStatus.textContent = state.presence.mode === "p2p"
+    el.onlineStatus.textContent = state.presence.mode === "shared"
       ? `Salon partagé actif en tant que ${state.presence.nickname}.`
       : `Connecté en direct en tant que ${state.presence.nickname}.`;
-  } else if (state.presence.mode === "p2p") {
+  } else if (state.presence.mode === "shared") {
     el.onlineStatus.textContent = `Connexion du salon partagé pour ${state.presence.nickname}...`;
   } else {
     el.onlineStatus.textContent = `Connexion en cours pour ${state.presence.nickname}...`;
@@ -846,11 +873,16 @@ function updateOnlinePanel() {
     emptyItem.textContent = "Personne en ligne pour l'instant.";
     el.onlineUsersList.appendChild(emptyItem);
   } else {
-    displayUsers.forEach((userName) => {
-      const isOnline = liveUsers.includes(userName);
+    const hasLiveSelfId = liveUsers.some((user) => user.id === state.presence.clientId);
+
+    displayUsers.forEach((user) => {
+      const isOnline = liveUsers.some((liveUser) => liveUser.id === user.id);
+      const isCurrentUser = user.id === state.presence.clientId
+        || (!hasLiveSelfId && user.name === state.presence.nickname);
+
       const item = document.createElement("li");
       item.className = "online-user-item";
-      if (userName === state.presence.nickname) {
+      if (isCurrentUser) {
         item.classList.add("online-user-you");
       }
 
@@ -864,7 +896,7 @@ function updateOnlinePanel() {
       }
 
       const name = document.createElement("span");
-      name.textContent = userName === state.presence.nickname ? `${userName} (toi)` : userName;
+      name.textContent = isCurrentUser ? `${user.name} (toi)` : user.name;
 
       const status = document.createElement("span");
       status.className = "online-user-state";
@@ -928,33 +960,37 @@ async function connectPeerPresence() {
 
   const connectToken = ++state.presence.connectToken;
   closePresenceConnections();
-  state.presence.mode = "p2p";
+  state.presence.mode = "shared";
   state.presence.connected = false;
-  state.presence.users = [state.presence.nickname];
+  state.presence.users = [{ id: state.presence.clientId, name: state.presence.nickname }];
   updateOnlinePanel();
 
   try {
-    const { Y, WebrtcProvider } = await loadPeerPresenceLibs();
+    const { Y, WebsocketProvider } = await loadPeerPresenceLibs();
     if (state.presence.connectToken !== connectToken) return;
 
     const doc = new Y.Doc();
-    const provider = new WebrtcProvider("sabsab-salon-public", doc, {
-      signaling: ["wss://signaling.yjs.dev"],
-    });
+    const provider = new WebsocketProvider("wss://demos.yjs.dev", "sabsab-salon-public", doc);
     state.presence.peerDoc = doc;
     state.presence.peerProvider = provider;
 
     const syncPeerUsers = () => {
-      const nextUsers = [state.presence.nickname];
-      provider.awareness.getStates().forEach((presenceState) => {
+      const nextUsers = [];
+
+      provider.awareness.getStates().forEach((presenceState, awarenessClientId) => {
         const userName = sanitizeNickname(presenceState?.user?.name);
+        const userId = String(presenceState?.user?.clientId || awarenessClientId || `peer-${nextUsers.length}`);
         if (userName) {
-          nextUsers.push(userName);
+          nextUsers.push({ id: userId, name: userName });
         }
       });
 
+      if (!nextUsers.some((user) => user.id === state.presence.clientId)) {
+        nextUsers.unshift({ id: state.presence.clientId, name: state.presence.nickname });
+      }
+
       state.presence.users = getSortedPresenceUsers(nextUsers);
-      rememberSeenNicknames([state.presence.nickname, ...state.presence.users]);
+      rememberSeenNicknames([state.presence.nickname, ...state.presence.users.map((user) => user.name)]);
       state.presence.connected = true;
       updateOnlinePanel();
     };
@@ -976,7 +1012,9 @@ async function connectPeerPresence() {
 
     state.presence.mode = "offline";
     state.presence.connected = false;
-    state.presence.users = state.presence.nickname ? [state.presence.nickname] : [];
+    state.presence.users = state.presence.nickname
+      ? [{ id: state.presence.clientId, name: state.presence.nickname }]
+      : [];
     updateOnlinePanel();
     console.warn("Presence fallback unavailable:", error);
   }
@@ -1014,7 +1052,8 @@ function connectPresenceStream() {
       const payload = JSON.parse(event.data);
       if (payload.type !== "presence") return;
       state.presence.users = Array.isArray(payload.users) ? payload.users : [];
-      rememberSeenNicknames([state.presence.nickname, ...state.presence.users]);
+      const liveUsers = getSortedPresenceUsers(state.presence.users);
+      rememberSeenNicknames([state.presence.nickname, ...liveUsers.map((user) => user.name)]);
       state.presence.connected = true;
       updateOnlinePanel();
     } catch {
@@ -2066,7 +2105,7 @@ function setupHome() {
   state.home.locked = false;
   syncKrillShortcutButton();
   syncHomeCandlesVisibility();
-  setCandlesMessage("Tu peux allumer les bougies dès le début, juste pour le style ✨");
+  setCandlesMessage("Allume les bougies et tout le monde te verra en ligne ✨");
   refreshMusicUI();
   el.candlesLayer.innerHTML = "";
   const candleOffsets = [-6, -2, 2, -4, 1, 4, 0];

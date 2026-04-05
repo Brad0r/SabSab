@@ -146,10 +146,13 @@ function broadcastReload(changedFile) {
 }
 
 function broadcastPresence() {
-  const users = [...presenceUsers.values()]
-    .map((entry) => entry.name)
-    .filter(Boolean)
-    .sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+  const users = [...presenceUsers.entries()]
+    .map(([clientId, entry]) => ({
+      id: clientId,
+      name: entry?.name || '',
+    }))
+    .filter((entry) => entry.name)
+    .sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
 
   const payload = `data: ${JSON.stringify({ type: 'presence', users })}\n\n`;
   for (const client of presenceClients) {
