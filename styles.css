@@ -68,12 +68,16 @@ body[data-theme="dark"] .playlist-track-item,
 body[data-theme="dark"] .playlist-check-item,
 body[data-theme="dark"] .online-user-item,
 body[data-theme="dark"] .online-empty,
+body[data-theme="dark"] .multi-chat-message,
+body[data-theme="dark"] .multi-chat-empty,
+body[data-theme="dark"] .multi-chat-drawer,
 body[data-theme="dark"] #music-select,
 body[data-theme="dark"] #playlist-select,
 body[data-theme="dark"] #playlist-track-list,
 body[data-theme="dark"] .playlist-creator input,
 body[data-theme="dark"] #playlist-modal-name,
 body[data-theme="dark"] #nickname-input,
+body[data-theme="dark"] #multi-chat-input,
 body[data-theme="dark"] .sound-library select {
   background: rgba(16, 26, 44, 0.94);
   color: var(--ink);
@@ -142,8 +146,24 @@ body[data-theme="dark"] #music-now-context,
 body[data-theme="dark"] .playlist-status,
 body[data-theme="dark"] .sound-note,
 body[data-theme="dark"] .music-time,
-body[data-theme="dark"] .empty-playlist-note {
+body[data-theme="dark"] .empty-playlist-note,
+body[data-theme="dark"] .multi-note,
+body[data-theme="dark"] .multi-chat-meta {
   color: #c8dcff;
+}
+
+body[data-theme="dark"] .multi-note-btn {
+  background: linear-gradient(180deg, #1d3357 0%, #28519c 100%);
+  box-shadow: 0 6px 0 #12366f;
+}
+
+body[data-theme="dark"] .multi-note-btn:active,
+body[data-theme="dark"] .multi-note-btn.is-playing {
+  box-shadow: 0 2px 0 #12366f;
+}
+
+body[data-theme="dark"] .multi-canvas-wrap {
+  background: #0f1a2d;
 }
 
 body[data-theme="dark"] .playlist-card.active {
@@ -576,6 +596,10 @@ body[data-theme="dark"] .playlist-card.active {
   overscroll-behavior: contain;
 }
 
+#screen-multi {
+  padding-bottom: 34px;
+}
+
 .music-bg {
   position: absolute;
   inset: 0;
@@ -696,6 +720,227 @@ body[data-theme="dark"] .playlist-card.active {
 #playlist-select,
 .playlist-creator input {
   min-height: 52px;
+}
+
+.multi-hero {
+  position: relative;
+  z-index: 2;
+  max-width: 1160px;
+  margin: 0 auto 12px;
+}
+
+.multi-hero h2,
+.multi-card h3 {
+  margin: 0;
+}
+
+.multi-main {
+  position: relative;
+  z-index: 2;
+  max-width: 1160px;
+  margin: 12px auto 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.95fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.multi-card {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.multi-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.multi-toolbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.multi-color-input {
+  width: 48px;
+  height: 44px;
+  padding: 2px;
+  border-radius: 12px;
+  border: 3px solid var(--line);
+  background: var(--panel);
+}
+
+.multi-range {
+  width: 110px;
+}
+
+.multi-canvas-wrap {
+  border: 3px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  background: #fffdfd;
+}
+
+#multi-canvas {
+  display: block;
+  width: 100%;
+  height: min(48vh, 420px);
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.multi-note {
+  margin: 0;
+  font-weight: 700;
+  color: #5b2a46;
+  line-height: 1.45;
+}
+
+.multi-music-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.multi-note-btn {
+  min-height: 82px;
+  border-radius: 18px;
+  border: 3px solid var(--line);
+  background: linear-gradient(180deg, #ffe0ed 0%, #ffb5d0 100%);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  gap: 4px;
+  box-shadow: 0 6px 0 #cf7da1;
+}
+
+.multi-note-btn small {
+  font-size: 0.78rem;
+  opacity: 0.72;
+}
+
+.multi-note-btn:active,
+.multi-note-btn.is-playing {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 #cf7da1;
+  background: linear-gradient(180deg, #ffefae 0%, #ffc173 100%);
+}
+
+.multi-chat-launch {
+  min-width: 110px;
+}
+
+.multi-chat-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 249;
+  border: 0;
+  background: rgba(6, 10, 18, 0.34);
+  padding: 0;
+}
+
+.multi-chat-backdrop[hidden] {
+  display: none !important;
+}
+
+.multi-chat-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(380px, 92vw);
+  z-index: 250;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 12px;
+  padding: 16px;
+  border-left: 3px solid var(--line);
+  background: rgba(255, 248, 251, 0.98);
+  box-shadow: -16px 0 32px rgba(44, 17, 40, 0.2);
+  transform: translateX(105%);
+  transition: transform 0.24s ease;
+}
+
+.multi-chat-drawer.open {
+  transform: translateX(0);
+}
+
+.multi-chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.multi-chat-header h3 {
+  margin: 0;
+}
+
+.multi-chat-messages {
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.multi-chat-message,
+.multi-chat-empty {
+  border: 2px solid rgba(44, 17, 40, 0.12);
+  border-radius: 12px;
+  background: #fffdfd;
+  padding: 10px 12px;
+}
+
+.multi-chat-message.you {
+  border-color: rgba(21, 178, 74, 0.38);
+}
+
+.multi-chat-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: #6a4361;
+}
+
+.multi-chat-text {
+  margin-top: 4px;
+  font-weight: 700;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.multi-chat-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+#multi-chat-input {
+  width: 100%;
+  min-height: 50px;
+  border: 3px solid var(--line);
+  border-radius: 12px;
+  background: #fff8fb;
+  color: var(--ink);
+  padding: 10px 14px;
+  font: inherit;
+  font-weight: 700;
+}
+
+body.multi-chat-open {
+  overflow: hidden;
 }
 
 .playlist-creator {
@@ -1381,10 +1626,16 @@ body.chaos-mode .apology-btn {
   .home-grid,
   .dialog-actions,
   .music-main,
+  .multi-main,
   .music-controls-row,
   .playlist-actions,
-  .playlist-creator {
+  .playlist-creator,
+  .multi-chat-form {
     grid-template-columns: 1fr;
+  }
+
+  .multi-music-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .sound-panel {
@@ -1395,7 +1646,8 @@ body.chaos-mode .apology-btn {
     justify-content: center;
   }
 
-  .music-player-topbar {
+  .music-player-topbar,
+  .multi-card-header {
     flex-direction: column;
     align-items: stretch;
   }

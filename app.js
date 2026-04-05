@@ -258,6 +258,7 @@ const el = {
   screenGame: document.getElementById("screen-game"),
   screenQuiz: document.getElementById("screen-quiz"),
   screenMusic: document.getElementById("screen-music"),
+  screenMulti: document.getElementById("screen-multi"),
   fade: document.getElementById("fade-overlay"),
 
   candlesLayer: document.getElementById("candles-layer"),
@@ -266,10 +267,12 @@ const el = {
   btnStartQuiz: document.getElementById("btn-start-quiz"),
   btnStartKrill: document.getElementById("btn-start-krill"),
   btnStartMusic: document.getElementById("btn-start-music"),
+  btnStartMulti: document.getElementById("btn-start-multi"),
   btnSoundMenu: document.getElementById("btn-sound-menu"),
   btnSoundMenuGame: document.getElementById("btn-sound-menu-game"),
   btnSoundMenuQuiz: document.getElementById("btn-sound-menu-quiz"),
   btnSoundMenuMusic: document.getElementById("btn-sound-menu-music"),
+  btnSoundMenuMulti: document.getElementById("btn-sound-menu-multi"),
   themeToggles: Array.from(document.querySelectorAll("[data-theme-toggle]")),
   onlineTriggers: Array.from(document.querySelectorAll("[data-online-trigger]")),
   soundPanel: document.getElementById("sound-panel"),
@@ -314,6 +317,21 @@ const el = {
   btnConfirmAddToPlaylist: document.getElementById("btn-confirm-add-to-playlist"),
   btnCancelAddToPlaylist: document.getElementById("btn-cancel-add-to-playlist"),
   btnMusicHome: document.getElementById("btn-music-home"),
+  btnMultiHome: document.getElementById("btn-multi-home"),
+  btnToggleMultiChat: document.getElementById("btn-open-multi-chat"),
+  btnCloseMultiChat: document.getElementById("btn-close-multi-chat"),
+  multiChatDrawer: document.getElementById("multi-chat-drawer"),
+  multiChatBackdrop: document.getElementById("multi-chat-backdrop"),
+  multiChatStatus: document.getElementById("multi-chat-status"),
+  multiChatMessages: document.getElementById("multi-chat-messages"),
+  multiChatForm: document.getElementById("multi-chat-form"),
+  multiChatInput: document.getElementById("multi-chat-input"),
+  multiCanvas: document.getElementById("multi-canvas"),
+  multiCanvasColor: document.getElementById("multi-canvas-color"),
+  multiCanvasSize: document.getElementById("multi-canvas-size"),
+  btnClearMultiCanvas: document.getElementById("btn-clear-multi-canvas"),
+  multiMusicPads: document.getElementById("multi-music-pads"),
+  multiMusicHint: document.getElementById("multi-music-hint"),
 
   edenBg: document.querySelector(".eden-bg"),
   arena: document.getElementById("game-arena"),
@@ -366,6 +384,7 @@ const el = {
 
 let sfxAudio = null;
 let musicAudio = null;
+let multiToneContext = null;
 let musicProgressDragging = false;
 let lastGoodIndex = -1;
 let lastBadIndex = -1;
@@ -385,6 +404,20 @@ const PEER_PRESENCE_POLL_MS = 400;
 const PUBLIC_PRESENCE_TOPIC = "sabsab-live-presence";
 const PUBLIC_PRESENCE_POST_URL = `https://ntfy.sh/${PUBLIC_PRESENCE_TOPIC}`;
 const PUBLIC_PRESENCE_STREAM_URL = `https://ntfy.sh/${PUBLIC_PRESENCE_TOPIC}/sse?since=1m`;
+const MULTI_SHARED_ROOM = "sabsab-multi";
+const PUBLIC_MULTI_TOPIC = "sabsab-live-multi";
+const PUBLIC_MULTI_POST_URL = `https://ntfy.sh/${PUBLIC_MULTI_TOPIC}`;
+const PUBLIC_MULTI_STREAM_URL = `https://ntfy.sh/${PUBLIC_MULTI_TOPIC}/sse?since=1m`;
+const MULTI_MUSIC_NOTES = [
+  { id: "do", label: "Do", key: "A", freq: 261.63 },
+  { id: "re", label: "Ré", key: "S", freq: 293.66 },
+  { id: "mi", label: "Mi", key: "D", freq: 329.63 },
+  { id: "fa", label: "Fa", key: "F", freq: 349.23 },
+  { id: "sol", label: "Sol", key: "J", freq: 392.0 },
+  { id: "la", label: "La", key: "K", freq: 440.0 },
+  { id: "si", label: "Si", key: "L", freq: 493.88 },
+  { id: "do2", label: "Do+", key: ";", freq: 523.25 },
+];
 
 function readSavedTheme() {
   try {
@@ -538,6 +571,18 @@ const state = {
     peerPollTimer: 0,
     refreshNow: null,
     connectToken: 0,
+  },
+  multi: {
+    connected: false,
+    stream: null,
+    messages: [],
+    seenEventIds: [],
+    canvasEvents: [],
+    brushColor: "#ff4f7d",
+    brushSize: 4,
+    drawing: false,
+    activeStroke: [],
+    lastPoint: null,
   },
   home: {
     total: 0,
@@ -2042,10 +2087,12 @@ function setActiveScreen(name) {
   el.screenGame.classList.remove("active");
   el.screenQuiz.classList.remove("active");
   el.screenMusic.classList.remove("active");
+  el.screenMulti.classList.remove("active");
   if (name === "home") el.screenHome.classList.add("active");
   if (name === "game") el.screenGame.classList.add("active");
   if (name === "quiz") el.screenQuiz.classList.add("active");
   if (name === "music") el.screenMusic.classList.add("active");
+  if (name === "multi") el.screenMulti.classList.add("active");
 }
 
 function fadeTo(nextFn) {
@@ -2065,7 +2112,7 @@ function fadeTo(nextFn) {
 }
 
 function setupSoundPanel() {
-  const soundBtns = [el.btnSoundMenu, el.btnSoundMenuGame, el.btnSoundMenuQuiz, el.btnSoundMenuMusic].filter(Boolean);
+  const soundBtns = [el.btnSoundMenu, el.btnSoundMenuGame, el.btnSoundMenuQuiz, el.btnSoundMenuMusic, el.btnSoundMenuMulti].filter(Boolean);
   soundBtns.forEach((btn) => {
     btn.addEventListener("click", (event) => {
       event.preventDefault();
@@ -2258,6 +2305,7 @@ function setupMusicScreen() {
     if (event.key !== "Escape") return;
     closeCreatePlaylistModal();
     closePlaylistTrackPicker();
+    closeMultiChatDrawer();
     if (el.onlinePanel) {
       el.onlinePanel.hidden = true;
     }
@@ -2313,6 +2361,543 @@ function setupMusicScreen() {
   });
 }
 
+function createRealtimeId(prefix = "evt") {
+  return typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? `${prefix}-${crypto.randomUUID()}`
+    : `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function rememberMultiEventId(eventId) {
+  const safeId = String(eventId || "").trim();
+  if (!safeId) return false;
+  if (state.multi.seenEventIds.includes(safeId)) return false;
+
+  state.multi.seenEventIds.push(safeId);
+  if (state.multi.seenEventIds.length > 220) {
+    state.multi.seenEventIds.splice(0, state.multi.seenEventIds.length - 220);
+  }
+
+  return true;
+}
+
+function clearMultiCanvasSurface() {
+  if (!el.multiCanvas) return;
+  const ctx = el.multiCanvas.getContext("2d");
+  if (!ctx) return;
+
+  ctx.clearRect(0, 0, el.multiCanvas.width, el.multiCanvas.height);
+  ctx.fillStyle = state.theme === "dark" ? "#0f1a2d" : "#fffdfd";
+  ctx.fillRect(0, 0, el.multiCanvas.width, el.multiCanvas.height);
+
+  ctx.save();
+  ctx.strokeStyle = state.theme === "dark" ? "rgba(140, 187, 255, 0.12)" : "rgba(255, 79, 125, 0.1)";
+  ctx.lineWidth = 1;
+  const step = Math.max(26, Math.floor(el.multiCanvas.width / 20));
+  for (let x = step; x < el.multiCanvas.width; x += step) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, el.multiCanvas.height);
+    ctx.stroke();
+  }
+  for (let y = step; y < el.multiCanvas.height; y += step) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(el.multiCanvas.width, y);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawMultiStrokePath(points, color = state.multi.brushColor, size = state.multi.brushSize) {
+  if (!el.multiCanvas || !Array.isArray(points) || points.length < 2) return;
+  const ctx = el.multiCanvas.getContext("2d");
+  if (!ctx) return;
+
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(1.5, Number(size || 4)) * Math.max(window.devicePixelRatio || 1, 1);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.moveTo(points[0].x * el.multiCanvas.width, points[0].y * el.multiCanvas.height);
+  points.slice(1).forEach((point) => {
+    ctx.lineTo(point.x * el.multiCanvas.width, point.y * el.multiCanvas.height);
+  });
+  ctx.stroke();
+  ctx.restore();
+}
+
+function redrawMultiCanvasHistory() {
+  clearMultiCanvasSurface();
+  state.multi.canvasEvents.forEach((entry) => {
+    if (entry?.type === "draw-stroke") {
+      drawMultiStrokePath(entry.points, entry.color, entry.size);
+    }
+  });
+}
+
+function syncMultiCanvasSize() {
+  if (!el.multiCanvas) return;
+
+  const rect = el.multiCanvas.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+
+  const ratio = Math.max(window.devicePixelRatio || 1, 1);
+  const nextWidth = Math.floor(rect.width * ratio);
+  const nextHeight = Math.floor(rect.height * ratio);
+
+  if (el.multiCanvas.width === nextWidth && el.multiCanvas.height === nextHeight) return;
+
+  el.multiCanvas.width = nextWidth;
+  el.multiCanvas.height = nextHeight;
+  redrawMultiCanvasHistory();
+}
+
+function getNormalizedCanvasPoint(event) {
+  if (!el.multiCanvas) return null;
+  const point = event.touches?.[0] || event.changedTouches?.[0] || event;
+  if (typeof point.clientX !== "number" || typeof point.clientY !== "number") return null;
+
+  const rect = el.multiCanvas.getBoundingClientRect();
+  if (!rect.width || !rect.height) return null;
+
+  const x = Math.max(0, Math.min(1, (point.clientX - rect.left) / rect.width));
+  const y = Math.max(0, Math.min(1, (point.clientY - rect.top) / rect.height));
+  return { x, y };
+}
+
+function renderMultiChatMessages() {
+  if (!el.multiChatMessages) return;
+  el.multiChatMessages.innerHTML = "";
+
+  if (!state.multi.messages.length) {
+    const empty = document.createElement("div");
+    empty.className = "multi-chat-empty";
+    empty.textContent = "Aucun message pour le moment. Lance la conversation ✨";
+    el.multiChatMessages.appendChild(empty);
+  } else {
+    state.multi.messages.slice(-40).forEach((message) => {
+      const row = document.createElement("article");
+      row.className = "multi-chat-message";
+      if (message.name === state.presence.nickname) {
+        row.classList.add("you");
+      }
+
+      const meta = document.createElement("div");
+      meta.className = "multi-chat-meta";
+
+      const author = document.createElement("strong");
+      author.textContent = message.name || "Visiteur";
+
+      const time = document.createElement("span");
+      time.textContent = new Date(message.ts || Date.now()).toLocaleTimeString("fr-FR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+
+      const text = document.createElement("div");
+      text.className = "multi-chat-text";
+      text.textContent = message.text;
+
+      meta.append(author, time);
+      row.append(meta, text);
+      el.multiChatMessages.appendChild(row);
+    });
+  }
+
+  el.multiChatMessages.scrollTop = el.multiChatMessages.scrollHeight;
+
+  if (el.multiChatStatus) {
+    el.multiChatStatus.textContent = state.multi.connected
+      ? "Salon coopératif en direct." 
+      : "Connexion du salon coopératif...";
+  }
+}
+
+function closeMultiChatDrawer() {
+  if (!el.multiChatDrawer) return;
+  el.multiChatDrawer.classList.remove("open");
+  el.multiChatDrawer.setAttribute("aria-hidden", "true");
+  if (el.multiChatBackdrop) {
+    el.multiChatBackdrop.hidden = true;
+  }
+  if (el.btnToggleMultiChat) {
+    el.btnToggleMultiChat.setAttribute("aria-expanded", "false");
+  }
+  document.body.classList.remove("multi-chat-open");
+}
+
+function openMultiChatDrawer() {
+  if (!el.multiChatDrawer) return;
+  connectMultiRealtime();
+  if (el.soundPanel) {
+    el.soundPanel.hidden = true;
+  }
+  if (el.onlinePanel) {
+    el.onlinePanel.hidden = true;
+  }
+  el.multiChatDrawer.classList.add("open");
+  el.multiChatDrawer.setAttribute("aria-hidden", "false");
+  if (el.multiChatBackdrop) {
+    el.multiChatBackdrop.hidden = false;
+  }
+  if (el.btnToggleMultiChat) {
+    el.btnToggleMultiChat.setAttribute("aria-expanded", "true");
+  }
+  document.body.classList.add("multi-chat-open");
+  renderMultiChatMessages();
+  requestAnimationFrame(() => {
+    el.multiChatInput?.focus();
+  });
+}
+
+function toggleMultiChatDrawer() {
+  if (el.multiChatDrawer?.classList.contains("open")) {
+    closeMultiChatDrawer();
+    return;
+  }
+  openMultiChatDrawer();
+}
+
+async function sendMultiRealtimeEvent(payload, applyLocally = true) {
+  if (!payload || typeof payload !== "object") return null;
+
+  const eventPayload = {
+    id: payload.id || createRealtimeId(payload.type || "multi"),
+    room: MULTI_SHARED_ROOM,
+    name: state.presence.nickname || "Invité",
+    sessionId: state.presence.sessionId,
+    ts: Date.now(),
+    ...payload,
+  };
+
+  if (applyLocally) {
+    applyMultiRealtimeEvent(eventPayload);
+  } else {
+    rememberMultiEventId(eventPayload.id);
+  }
+
+  const response = await fetch(PUBLIC_MULTI_POST_URL, {
+    method: "POST",
+    mode: "cors",
+    cache: "no-store",
+    keepalive: true,
+    headers: {
+      "Content-Type": "text/plain;charset=UTF-8",
+    },
+    body: JSON.stringify(eventPayload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Multi realtime failed (${response.status})`);
+  }
+
+  return eventPayload;
+}
+
+function playMultiMusicNote(noteId, shouldBroadcast = false) {
+  const note = MULTI_MUSIC_NOTES.find((entry) => entry.id === noteId);
+  if (!note) return;
+
+  if (!multiToneContext) {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (AudioCtx) {
+      multiToneContext = new AudioCtx();
+    }
+  }
+
+  if (multiToneContext?.state === "suspended") {
+    multiToneContext.resume().catch(() => {});
+  }
+
+  if (multiToneContext) {
+    const now = multiToneContext.currentTime;
+    const oscillator = multiToneContext.createOscillator();
+    const gain = multiToneContext.createGain();
+    oscillator.type = "triangle";
+    oscillator.frequency.setValueAtTime(note.freq, now);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.2, now + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.8);
+    oscillator.connect(gain);
+    gain.connect(multiToneContext.destination);
+    oscillator.start(now);
+    oscillator.stop(now + 0.85);
+  }
+
+  el.multiMusicPads?.querySelectorAll("[data-note]").forEach((button) => {
+    if (button.dataset.note !== noteId) return;
+    button.classList.add("is-playing");
+    window.setTimeout(() => {
+      button.classList.remove("is-playing");
+    }, 260);
+  });
+
+  if (el.multiMusicHint) {
+    el.multiMusicHint.textContent = `${note.label} résonne dans le salon.`;
+  }
+
+  if (shouldBroadcast) {
+    sendMultiRealtimeEvent({ type: "music-note", noteId }).catch(() => {
+      if (el.multiMusicHint) {
+        el.multiMusicHint.textContent = `${note.label} a joué localement, mais l'envoi a raté.`;
+      }
+    });
+  }
+}
+
+function applyMultiRealtimeEvent(payload) {
+  if (!payload || payload.room !== MULTI_SHARED_ROOM) return;
+  if (!rememberMultiEventId(payload.id)) return;
+
+  if (payload.type === "chat-message") {
+    const text = String(payload.text || "").trim();
+    if (!text) return;
+
+    state.multi.messages.push({
+      id: payload.id,
+      name: sanitizeNickname(payload.name) || "Invité",
+      text,
+      ts: Number(payload.ts || Date.now()),
+    });
+
+    if (state.multi.messages.length > 60) {
+      state.multi.messages.splice(0, state.multi.messages.length - 60);
+    }
+
+    renderMultiChatMessages();
+    return;
+  }
+
+  if (payload.type === "draw-stroke") {
+    if (!Array.isArray(payload.points) || payload.points.length < 2) return;
+    state.multi.canvasEvents.push({
+      type: "draw-stroke",
+      points: payload.points,
+      color: payload.color || state.multi.brushColor,
+      size: Number(payload.size || state.multi.brushSize),
+    });
+
+    if (state.multi.canvasEvents.length > 160) {
+      state.multi.canvasEvents.splice(0, state.multi.canvasEvents.length - 160);
+    }
+
+    drawMultiStrokePath(payload.points, payload.color, payload.size);
+    return;
+  }
+
+  if (payload.type === "clear-canvas") {
+    state.multi.canvasEvents = [];
+    clearMultiCanvasSurface();
+    return;
+  }
+
+  if (payload.type === "music-note") {
+    playMultiMusicNote(payload.noteId, false);
+  }
+}
+
+function connectMultiRealtime() {
+  if (state.multi.stream || typeof EventSource === "undefined") {
+    renderMultiChatMessages();
+    return;
+  }
+
+  const stream = new EventSource(PUBLIC_MULTI_STREAM_URL);
+  state.multi.stream = stream;
+  state.multi.connected = false;
+  renderMultiChatMessages();
+
+  const handleEvent = (event) => {
+    try {
+      const envelope = JSON.parse(event.data || "{}");
+      if (envelope.event !== "message" || !envelope.message) return;
+      const payload = JSON.parse(envelope.message);
+      state.multi.connected = true;
+      applyMultiRealtimeEvent(payload);
+      renderMultiChatMessages();
+    } catch {
+      // ignore malformed realtime payloads
+    }
+  };
+
+  stream.onopen = () => {
+    state.multi.connected = true;
+    renderMultiChatMessages();
+  };
+
+  stream.onmessage = handleEvent;
+  stream.addEventListener?.("message", handleEvent);
+
+  stream.onerror = () => {
+    state.multi.connected = false;
+    renderMultiChatMessages();
+  };
+}
+
+function setupMultiCanvas() {
+  if (!el.multiCanvas) return;
+
+  const updateBrushSettings = () => {
+    state.multi.brushColor = el.multiCanvasColor?.value || "#ff4f7d";
+    state.multi.brushSize = Number(el.multiCanvasSize?.value || 4);
+  };
+
+  const finishStroke = () => {
+    if (!state.multi.drawing) return;
+    state.multi.drawing = false;
+
+    const stroke = Array.isArray(state.multi.activeStroke)
+      ? state.multi.activeStroke.map((point) => ({
+        x: Number(point.x.toFixed(4)),
+        y: Number(point.y.toFixed(4)),
+      }))
+      : [];
+
+    if (stroke.length > 1) {
+      state.multi.canvasEvents.push({
+        type: "draw-stroke",
+        points: stroke,
+        color: state.multi.brushColor,
+        size: state.multi.brushSize,
+      });
+
+      if (state.multi.canvasEvents.length > 160) {
+        state.multi.canvasEvents.splice(0, state.multi.canvasEvents.length - 160);
+      }
+
+      sendMultiRealtimeEvent({
+        type: "draw-stroke",
+        points: stroke,
+        color: state.multi.brushColor,
+        size: state.multi.brushSize,
+      }, false).catch(() => {});
+    }
+
+    state.multi.activeStroke = [];
+    state.multi.lastPoint = null;
+  };
+
+  const startStroke = (event) => {
+    if (event.button !== undefined && event.button !== 0) return;
+    syncMultiCanvasSize();
+    updateBrushSettings();
+    const point = getNormalizedCanvasPoint(event);
+    if (!point) return;
+
+    state.multi.drawing = true;
+    state.multi.lastPoint = point;
+    state.multi.activeStroke = [point];
+    el.multiCanvas.setPointerCapture?.(event.pointerId);
+    event.preventDefault();
+  };
+
+  const moveStroke = (event) => {
+    if (!state.multi.drawing) return;
+    const point = getNormalizedCanvasPoint(event);
+    if (!point || !state.multi.lastPoint) return;
+
+    drawMultiStrokePath([state.multi.lastPoint, point], state.multi.brushColor, state.multi.brushSize);
+    state.multi.activeStroke.push(point);
+    state.multi.lastPoint = point;
+    event.preventDefault();
+  };
+
+  el.multiCanvas.addEventListener("pointerdown", startStroke);
+  el.multiCanvas.addEventListener("pointermove", moveStroke);
+  el.multiCanvas.addEventListener("pointerup", finishStroke);
+  el.multiCanvas.addEventListener("pointerleave", finishStroke);
+  el.multiCanvas.addEventListener("pointercancel", finishStroke);
+
+  el.multiCanvasColor?.addEventListener("input", updateBrushSettings);
+  el.multiCanvasSize?.addEventListener("input", updateBrushSettings);
+
+  el.btnClearMultiCanvas?.addEventListener("click", (event) => {
+    event.preventDefault();
+    state.multi.canvasEvents = [];
+    clearMultiCanvasSurface();
+    sendMultiRealtimeEvent({ type: "clear-canvas" }, false).catch(() => {});
+  });
+
+  window.addEventListener("resize", () => {
+    if (el.screenMulti?.classList.contains("active")) {
+      syncMultiCanvasSize();
+      redrawMultiCanvasHistory();
+    }
+  });
+
+  syncMultiCanvasSize();
+  clearMultiCanvasSurface();
+}
+
+function setupMultiScreen() {
+  connectMultiRealtime();
+  setupMultiCanvas();
+  renderMultiChatMessages();
+
+  el.btnStartMulti?.addEventListener("click", (event) => {
+    event.preventDefault();
+    fadeTo(() => {
+      setActiveScreen("multi");
+      syncMultiCanvasSize();
+      redrawMultiCanvasHistory();
+      connectMultiRealtime();
+    });
+  });
+
+  el.btnToggleMultiChat?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!state.presence.nickname) {
+      openNicknameModal(false);
+      return;
+    }
+    toggleMultiChatDrawer();
+  });
+
+  el.btnCloseMultiChat?.addEventListener("click", (event) => {
+    event.preventDefault();
+    closeMultiChatDrawer();
+  });
+
+  el.multiChatBackdrop?.addEventListener("click", closeMultiChatDrawer);
+
+  el.multiChatForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const text = String(el.multiChatInput?.value || "").trim().slice(0, 240);
+    if (!text) return;
+
+    sendMultiRealtimeEvent({ type: "chat-message", text }).catch(() => {
+      if (el.multiChatStatus) {
+        el.multiChatStatus.textContent = "Message local envoyé, mais la synchro n'a pas répondu.";
+      }
+    });
+
+    if (el.multiChatInput) {
+      el.multiChatInput.value = "";
+      el.multiChatInput.focus();
+    }
+  });
+
+  el.multiMusicPads?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-note]");
+    if (!button) return;
+    event.preventDefault();
+    playMultiMusicNote(button.dataset.note, true);
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (!el.screenMulti?.classList.contains("active")) return;
+    if (event.repeat) return;
+
+    const note = MULTI_MUSIC_NOTES.find((entry) => entry.key.toLowerCase() === event.key.toLowerCase());
+    if (!note) return;
+
+    event.preventDefault();
+    playMultiMusicNote(note.id, true);
+  });
+}
+
 function setupHome() {
   state.home.krillUnlocked = true;
   state.home.candlesUnlocked = true;
@@ -2364,6 +2949,7 @@ function setupHome() {
   setupSoundPanel();
   setupPresence();
   setupMusicScreen();
+  setupMultiScreen();
 
   document.querySelectorAll(".disabled-cta").forEach((btn) => {
     if (btn.id === "btn-start-krill" || btn.id === "btn-start-music") return;
@@ -2950,6 +3536,7 @@ function returnToMenu() {
   el.playlistModal.hidden = true;
   el.playlistAddModal.hidden = true;
   el.soundPanel.hidden = true;
+  closeMultiChatDrawer();
   if (el.onlinePanel) {
     el.onlinePanel.hidden = true;
   }
@@ -2960,6 +3547,7 @@ function returnToMenu() {
 
 el.btnQuizHome.addEventListener("click", returnToMenu);
 el.btnMusicHome.addEventListener("click", returnToMenu);
+el.btnMultiHome?.addEventListener("click", returnToMenu);
 el.btnFinalHome.addEventListener("click", returnToMenu);
 el.btnChangeAnswer.addEventListener("click", () => {
   el.specialConfirm.hidden = true;

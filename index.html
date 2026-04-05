@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Noto+Sans+JP:wght@400;700;900&family=Zen+Kurenaido&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260405l" />
+  <link rel="stylesheet" href="styles.css?v=20260405m" />
 </head>
 <body>
   <div id="screen-home" class="screen active">
@@ -37,7 +37,7 @@
         <button id="btn-start-quiz" class="big-cta" type="button">Quiz</button>
         <button id="btn-start-krill" class="big-cta" type="button">Jeu des krill</button>
         <button id="btn-start-music" class="big-cta" type="button">Musique</button>
-        <button class="big-cta disabled-cta" type="button">En construction</button>
+        <button id="btn-start-multi" class="big-cta" type="button">Multi</button>
       </section>
     </main>
 
@@ -212,6 +212,94 @@
     </main>
   </div>
 
+  <div id="screen-multi" class="screen">
+    <div class="music-bg multi-bg"></div>
+    <header class="quiz-top">
+      <div class="quiz-actions-top">
+        <button id="btn-multi-home" class="secondary-cta" type="button">Retour au menu</button>
+        <div class="header-quick-actions">
+          <button id="btn-open-multi-chat" class="secondary-cta multi-chat-launch" type="button" aria-controls="multi-chat-drawer" aria-expanded="false">💬 Chat</button>
+          <button id="btn-sound-menu-multi" class="secondary-cta" type="button">Son</button>
+          <label class="theme-toggle-inline" aria-label="Mode sombre">
+            <span class="theme-inline-icon" aria-hidden="true">🌙</span>
+            <span class="toggle-switch toggle-switch-compact">
+              <input data-theme-toggle type="checkbox" />
+              <span class="toggle-slider"></span>
+            </span>
+          </label>
+          <button class="secondary-cta online-cta" type="button" data-online-trigger aria-label="Voir les personnes connectées">🟢</button>
+        </div>
+      </div>
+
+      <div class="multi-hero manga-panel">
+        <p class="kicker">Salon coopératif</p>
+        <h2>Multi</h2>
+        <p>Dessin partagé, carillon céleste original et chat instantané entre les personnes connectées.</p>
+      </div>
+    </header>
+
+    <main class="multi-main">
+      <section class="multi-card manga-panel">
+        <div class="multi-card-header">
+          <div>
+            <p class="kicker">Feuille partagée</p>
+            <h3>Atelier de dessin</h3>
+          </div>
+          <div class="multi-toolbar">
+            <input id="multi-canvas-color" class="multi-color-input" type="color" value="#ff4f7d" aria-label="Couleur du pinceau" />
+            <input id="multi-canvas-size" class="vol-slider multi-range" type="range" min="2" max="12" step="1" value="4" aria-label="Taille du pinceau" />
+            <button id="btn-clear-multi-canvas" class="secondary-cta" type="button">Effacer</button>
+          </div>
+        </div>
+
+        <div class="multi-canvas-wrap">
+          <canvas id="multi-canvas" aria-label="Zone de dessin partagé"></canvas>
+        </div>
+        <p class="multi-note">Chaque trait sert déjà de base au mode multi temps réel.</p>
+      </section>
+
+      <section class="multi-card manga-panel">
+        <div class="multi-card-header">
+          <div>
+            <p class="kicker">Mélodie commune</p>
+            <h3>Carillon céleste</h3>
+          </div>
+        </div>
+
+        <div id="multi-music-pads" class="multi-music-grid" aria-label="Pads musicaux">
+          <button class="multi-note-btn" type="button" data-note="do"><span>Do</span><small>A</small></button>
+          <button class="multi-note-btn" type="button" data-note="re"><span>Ré</span><small>S</small></button>
+          <button class="multi-note-btn" type="button" data-note="mi"><span>Mi</span><small>D</small></button>
+          <button class="multi-note-btn" type="button" data-note="fa"><span>Fa</span><small>F</small></button>
+          <button class="multi-note-btn" type="button" data-note="sol"><span>Sol</span><small>J</small></button>
+          <button class="multi-note-btn" type="button" data-note="la"><span>La</span><small>K</small></button>
+          <button class="multi-note-btn" type="button" data-note="si"><span>Si</span><small>L</small></button>
+          <button class="multi-note-btn" type="button" data-note="do2"><span>Do+</span><small>;</small></button>
+        </div>
+
+        <p id="multi-music-hint" class="multi-note">Clique une note pour jouer une mélodie douce et la partager au salon.</p>
+      </section>
+    </main>
+
+    <button id="multi-chat-backdrop" class="multi-chat-backdrop" type="button" hidden aria-label="Fermer le chat"></button>
+    <aside id="multi-chat-drawer" class="multi-chat-drawer" aria-hidden="true">
+      <div class="multi-chat-header">
+        <div>
+          <p class="kicker">Salon</p>
+          <h3>Chat en direct</h3>
+        </div>
+        <button id="btn-close-multi-chat" class="secondary-cta" type="button">Fermer</button>
+      </div>
+
+      <p id="multi-chat-status" class="multi-note">Connexion du salon...</p>
+      <div id="multi-chat-messages" class="multi-chat-messages" aria-live="polite"></div>
+      <form id="multi-chat-form" class="multi-chat-form">
+        <input id="multi-chat-input" type="text" maxlength="240" placeholder="Écris un message..." autocomplete="off" />
+        <button class="big-cta" type="submit">Envoyer</button>
+      </form>
+    </aside>
+  </div>
+
   <div id="playlist-modal" class="dialog" hidden>
     <div class="dialog-card manga-panel">
       <h3>Nouvelle playlist</h3>
@@ -328,6 +416,6 @@
       return "";
     })();
   </script>
-  <script src="app.js?v=20260405l"></script>
+  <script src="app.js?v=20260405m"></script>
 </body>
 </html>
