@@ -318,6 +318,7 @@ const el = {
   btnCancelAddToPlaylist: document.getElementById("btn-cancel-add-to-playlist"),
   btnMusicHome: document.getElementById("btn-music-home"),
   btnToggleSkyPiano: document.getElementById("btn-toggle-sky-piano"),
+  btnCloseSkyPiano: document.getElementById("btn-close-sky-piano"),
   skyPianoPanel: document.getElementById("sky-piano-panel"),
   skyKeySelect: document.getElementById("sky-key-select"),
   skyPianoGrid: document.getElementById("sky-piano-grid"),
@@ -2409,7 +2410,12 @@ function toggleSkyPiano(forceOpen) {
 
   if (shouldOpen) {
     renderSkyPiano();
+    updateSkyPianoMobileHint();
+    requestSkyPianoLandscape();
+    return;
   }
+
+  releaseSkyPianoLandscape();
 }
 
 function triggerSkyPianoNote(button, source = "toucher") {
@@ -2445,6 +2451,65 @@ function isTypingField(target) {
   return target.isContentEditable || tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT";
 }
 
+function isMobileSkyPianoMode() {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+  return window.matchMedia("(max-width: 760px), (pointer: coarse)").matches;
+}
+
+async function requestSkyPianoLandscape() {
+  if (!el.skyPianoPanel || !isMobileSkyPianoMode()) return;
+
+  document.body.classList.add("sky-piano-open");
+
+  try {
+    if (!document.fullscreenElement && el.skyPianoPanel.requestFullscreen) {
+      await el.skyPianoPanel.requestFullscreen();
+    }
+  } catch {
+    // fullscreen can be refused on some mobile browsers
+  }
+
+  try {
+    if (screen.orientation?.lock) {
+      await screen.orientation.lock("landscape");
+    }
+  } catch {
+    // orientation lock may be unavailable or blocked by the browser
+  }
+}
+
+async function releaseSkyPianoLandscape() {
+  document.body.classList.remove("sky-piano-open");
+
+  try {
+    if (screen.orientation?.unlock) {
+      screen.orientation.unlock();
+    }
+  } catch {
+    // orientation unlock may be unavailable
+  }
+
+  try {
+    if (document.fullscreenElement && document.exitFullscreen) {
+      await document.exitFullscreen();
+    }
+  } catch {
+    // ignore fullscreen exit failures
+  }
+}
+
+function updateSkyPianoMobileHint() {
+  if (!el.skyPianoStatus || !state.audio.skyPianoOpen || !isMobileSkyPianoMode()) return;
+
+  const inPortrait = typeof window !== "undefined"
+    && typeof window.matchMedia === "function"
+    && window.matchMedia("(orientation: portrait)").matches;
+
+  if (inPortrait) {
+    el.skyPianoStatus.textContent = "Tourne le téléphone en paysage pour jouer plus confortablement.";
+  }
+}
+
 function setupMusicScreen() {
   refreshMusicUI();
   renderSkyPiano();
@@ -2463,6 +2528,20 @@ function setupMusicScreen() {
     event.preventDefault();
     event.stopPropagation();
     toggleSkyPiano();
+  });
+
+  el.btnCloseSkyPiano?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleSkyPiano(false);
+  });
+
+  window.addEventListener("orientationchange", updateSkyPianoMobileHint);
+  window.addEventListener("resize", updateSkyPianoMobileHint);
+  document.addEventListener("fullscreenchange", () => {
+    if (!document.fullscreenElement) {
+      document.body.classList.remove("sky-piano-open");
+    }
   });
 
   el.skyKeySelect?.addEventListener("change", (event) => {

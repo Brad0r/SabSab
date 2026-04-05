@@ -948,6 +948,13 @@ body[data-theme="dark"] .playlist-card.active {
   background: rgba(9, 20, 40, 0.16);
 }
 
+.sky-piano-mobile-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .multi-note-btn {
   min-height: 82px;
   border-radius: 18px;
@@ -1778,6 +1785,39 @@ body.chaos-mode .apology-btn {
   .multi-music-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
+  body.sky-piano-open {
+    overflow: hidden;
+  }
+
+  body.sky-piano-open .multi-sky-panel {
+    position: fixed;
+    inset: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+    z-index: 420;
+    align-content: start;
+    padding: 14px;
+    background: rgba(9, 20, 40, 0.96);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.38);
+  }
+
+  body.sky-piano-open .sky-piano-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  body.sky-piano-open .sky-piano-key,
+  body.sky-piano-open .multi-note-btn {
+    min-height: clamp(70px, 17vw, 92px);
+  }
+}
+
+@media (max-width: 760px) and (orientation: portrait) {
+  body.sky-piano-open .sky-piano-help::before {
+    content: "↻ Tourne le téléphone en paysage pour jouer comme dans Sky. ";
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 900;
+  }
+}
 
   .sound-panel {
     text-align: left;
