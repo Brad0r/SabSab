@@ -114,6 +114,7 @@ const STORAGE_KEYS = {
   theme: "sabsab.theme",
   nickname: "sabsab.nickname",
   clientId: "sabsab.clientId",
+  seenNicknames: "sabsab.presenceSeenNicknames",
 };
 
 const questions = [
@@ -408,6 +409,43 @@ function saveNicknamePreference(nickname) {
   }
 }
 
+function readSeenNicknames() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEYS.seenNicknames) || "[]");
+    if (!Array.isArray(stored)) return [];
+
+    return [...new Set(stored.map(sanitizeNickname).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, "fr", { sensitivity: "base" }));
+  } catch {
+    return [];
+  }
+}
+
+function saveSeenNicknames(names) {
+  try {
+    localStorage.setItem(STORAGE_KEYS.seenNicknames, JSON.stringify(names));
+  } catch {
+    // ignore storage errors on private browsing or restricted devices
+  }
+}
+
+function rememberSeenNicknames(names) {
+  const incoming = (Array.isArray(names) ? names : [names])
+    .map(sanitizeNickname)
+    .filter(Boolean);
+
+  const currentKnown = Array.isArray(state?.presence?.knownUsers) ? state.presence.knownUsers : [];
+  const merged = [...new Set([...currentKnown, ...incoming])]
+    .sort((a, b) => a.localeCompare(b, "fr", { sensitivity: "base" }));
+
+  if (state?.presence) {
+    state.presence.knownUsers = merged;
+  }
+
+  saveSeenNicknames(merged);
+  return merged;
+}
+
 function readOrCreateClientId() {
   try {
     const existing = localStorage.getItem(STORAGE_KEYS.clientId);
@@ -450,6 +488,7 @@ const state = {
     nickname: readSavedNickname(),
     clientId: readOrCreateClientId(),
     users: [],
+    knownUsers: readSeenNicknames(),
     connected: false,
     stream: null,
   },
@@ -712,11 +751,15 @@ function toggleTheme(forceTheme) {
 function updateOnlinePanel() {
   if (!el.onlineStatus || !el.onlineCount || !el.onlineUsersList) return;
 
-  const uniqueUsers = [...new Set((state.presence.users || [])
+  const liveUsers = [...new Set((state.presence.users || [])
     .map(sanitizeNickname)
-    .filter(Boolean))];
+    .filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, "fr", { sensitivity: "base" }));
 
-  const count = uniqueUsers.length;
+  const knownUsers = rememberSeenNicknames([state.presence.nickname, ...liveUsers]);
+  const displayUsers = knownUsers.length ? knownUsers : liveUsers;
+  const count = liveUsers.length;
+
   el.onlineCount.textContent = `${count} connecté${count > 1 ? "s" : ""}`;
 
   if (!state.presence.nickname) {
@@ -729,26 +772,41 @@ function updateOnlinePanel() {
 
   el.onlineUsersList.innerHTML = "";
 
-  if (!uniqueUsers.length) {
+  if (!displayUsers.length) {
     const emptyItem = document.createElement("li");
     emptyItem.className = "online-empty";
     emptyItem.textContent = "Personne en ligne pour l'instant.";
     el.onlineUsersList.appendChild(emptyItem);
   } else {
-    uniqueUsers.forEach((userName) => {
+    displayUsers.forEach((userName) => {
+      const isOnline = liveUsers.includes(userName);
       const item = document.createElement("li");
       item.className = "online-user-item";
       if (userName === state.presence.nickname) {
         item.classList.add("online-user-you");
       }
 
+      const copy = document.createElement("span");
+      copy.className = "online-user-copy";
+
       const dot = document.createElement("span");
       dot.className = "online-user-dot";
+      if (!isOnline) {
+        dot.classList.add("is-offline");
+      }
 
       const name = document.createElement("span");
       name.textContent = userName === state.presence.nickname ? `${userName} (toi)` : userName;
 
-      item.append(dot, name);
+      const status = document.createElement("span");
+      status.className = "online-user-state";
+      status.textContent = isOnline ? "En ligne" : "Hors ligne";
+      if (!isOnline) {
+        status.classList.add("is-offline");
+      }
+
+      copy.append(dot, name);
+      item.append(copy, status);
       el.onlineUsersList.appendChild(item);
     });
   }
@@ -757,6 +815,7 @@ function updateOnlinePanel() {
     el.onlineTriggers.forEach((button) => {
       button.classList.toggle("is-live", count > 0);
       button.title = count > 0 ? `${count} personne(s) en ligne` : "Voir les personnes connectées";
+      button.setAttribute("aria-expanded", String(el.onlinePanel ? !el.onlinePanel.hidden : false));
     });
   }
 }
@@ -786,6 +845,7 @@ function saveNicknameAndConnect() {
 
   state.presence.nickname = nickname;
   saveNicknamePreference(nickname);
+  rememberSeenNicknames(nickname);
   closeNicknameModal();
   connectPresenceStream();
   updateOnlinePanel();
@@ -817,6 +877,7 @@ function connectPresenceStream() {
       const payload = JSON.parse(event.data);
       if (payload.type !== "presence") return;
       state.presence.users = Array.isArray(payload.users) ? payload.users : [];
+      rememberSeenNicknames([state.presence.nickname, ...state.presence.users]);
       state.presence.connected = true;
       updateOnlinePanel();
     } catch {
@@ -826,6 +887,7 @@ function connectPresenceStream() {
 
   stream.onerror = () => {
     state.presence.connected = false;
+    state.presence.users = [];
     updateOnlinePanel();
   };
 }
@@ -855,13 +917,21 @@ function setupPresence() {
         if (el.onlinePanel) {
           el.onlinePanel.hidden = !el.onlinePanel.hidden;
         }
-        if (el.soundPanel && !el.onlinePanel.hidden) {
+        if (el.soundPanel && el.onlinePanel && !el.onlinePanel.hidden) {
           el.soundPanel.hidden = true;
         }
         updateOnlinePanel();
       });
     });
   }
+
+  document.addEventListener("click", (event) => {
+    if (!el.onlinePanel || el.onlinePanel.hidden) return;
+    if (el.onlinePanel.contains(event.target)) return;
+    if (Array.isArray(el.onlineTriggers) && el.onlineTriggers.some((button) => button.contains(event.target))) return;
+    el.onlinePanel.hidden = true;
+    updateOnlinePanel();
+  });
 
   if (el.btnChangeNickname) {
     el.btnChangeNickname.addEventListener("click", (event) => {
@@ -1859,74 +1929,16 @@ function setupHome() {
   setCandlesMessage("Tu peux allumer les bougies dès le début, juste pour le style ✨");
   refreshMusicUI();
   el.candlesLayer.innerHTML = "";
-  const usedCandleSpots = [];
-  const screenRect = el.screenHome?.getBoundingClientRect();
-  const compactLayout = window.innerWidth <= 760;
-  const blockedZones = (el.homeActionTargets || [])
-    .filter(Boolean)
-    .map((target) => target.getBoundingClientRect())
-    .filter((rect) => rect.width > 0 && rect.height > 0 && screenRect?.width && screenRect?.height)
-    .map((rect) => {
-      const paddingX = compactLayout ? 14 : 18;
-      const paddingY = compactLayout ? 12 : 16;
-
-      return {
-        left: ((rect.left - screenRect.left - paddingX) / screenRect.width) * 100,
-        right: ((rect.right - screenRect.left + paddingX) / screenRect.width) * 100,
-        top: ((rect.top - screenRect.top - paddingY) / screenRect.height) * 100,
-        bottom: ((rect.bottom - screenRect.top + paddingY) / screenRect.height) * 100,
-      };
-    });
-
-  function isInNoCandleZone(x, y) {
-    return blockedZones.some((zone) => (
-      x > zone.left && x < zone.right && y > zone.top && y < zone.bottom
-    ));
-  }
-
-  function getSafeCandleSpot() {
-    const minDistance = compactLayout ? 12 : 10.5;
-
-    for (let tries = 0; tries < 120; tries += 1) {
-      const x = 4 + Math.random() * 92;
-      const y = compactLayout ? 8 + Math.random() * 84 : 6 + Math.random() * 88;
-      if (isInNoCandleZone(x, y)) continue;
-      const tooClose = usedCandleSpots.some((p) => Math.hypot(p.x - x, p.y - y) < minDistance);
-      if (tooClose) continue;
-      usedCandleSpots.push({ x, y });
-      return { x, y };
-    }
-
-    const fallbackOptions = compactLayout
-      ? [
-        { x: 8, y: 18 },
-        { x: 92, y: 18 },
-        { x: 8, y: 84 },
-        { x: 92, y: 84 },
-      ]
-      : [
-        { x: 8, y: 16 },
-        { x: 92, y: 16 },
-        { x: 8, y: 86 },
-        { x: 92, y: 86 },
-      ];
-
-    const fallback = fallbackOptions.find((spot) => !isInNoCandleZone(spot.x, spot.y))
-      || fallbackOptions[0];
-
-    usedCandleSpots.push(fallback);
-    return fallback;
-  }
+  const candleOffsets = [-6, -2, 2, -4, 1, 4, 0];
+  const candleTilts = [-6, -3, 2, -1, 4, 6, 0];
 
   for (let i = 0; i < state.home.total; i += 1) {
     const img = document.createElement("img");
     img.className = "home-candle";
     img.src = path(MEDIA.candles.off);
     img.alt = `Bougie ${i + 1}`;
-
-    const { x, y } = getSafeCandleSpot();
-    img.style.left = `${x}%`;
-    img.style.top = `${y}%`;
+    img.style.setProperty("--candle-offset", `${candleOffsets[i % candleOffsets.length]}px`);
+    img.style.setProperty("--candle-tilt", `${candleTilts[i % candleTilts.length]}deg`);
 
     img.addEventListener("click", () => {
       if (!state.home.candlesUnlocked || img.classList.contains("lit") || state.home.locked) return;
