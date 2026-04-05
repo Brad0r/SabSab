@@ -397,14 +397,14 @@ const PLAYER_MODES = {
   shuffle: "shuffle",
 };
 
-const PEER_PRESENCE_ROOM = "sabsab-salon-public";
-const PEER_PRESENCE_TTL_MS = 8000;
-const PEER_PRESENCE_HEARTBEAT_MS = 1200;
-const PEER_PRESENCE_POLL_MS = 400;
+const PEER_PRESENCE_ROOM = "sabsab-salon-live-v4";
+const PEER_PRESENCE_TTL_MS = 12000;
+const PEER_PRESENCE_HEARTBEAT_MS = 1800;
+const PEER_PRESENCE_POLL_MS = 700;
 const PUBLIC_PRESENCE_TOPIC = "sabsab-live-presence";
 const PUBLIC_PRESENCE_POST_URL = `https://ntfy.sh/${PUBLIC_PRESENCE_TOPIC}`;
 const PUBLIC_PRESENCE_STREAM_URL = `https://ntfy.sh/${PUBLIC_PRESENCE_TOPIC}/sse?since=1m`;
-const MULTI_SHARED_ROOM = "sabsab-multi";
+const MULTI_SHARED_ROOM = "sabsab-multi-v4";
 const PUBLIC_MULTI_TOPIC = "sabsab-live-multi";
 const PUBLIC_MULTI_POST_URL = `https://ntfy.sh/${PUBLIC_MULTI_TOPIC}`;
 const PUBLIC_MULTI_STREAM_URL = `https://ntfy.sh/${PUBLIC_MULTI_TOPIC}/sse?since=1m`;
@@ -537,17 +537,49 @@ function shouldUsePresenceServer() {
 
 let peerPresenceLibsPromise = null;
 
+async function importPeerModule(urls) {
+  let lastError = null;
+
+  for (const url of urls) {
+    try {
+      return await import(url);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError || new Error("Impossible de charger le module temps réel.");
+}
+
 async function loadPeerPresenceLibs() {
   if (!peerPresenceLibsPromise) {
-    peerPresenceLibsPromise = Promise.all([
-      import("https://esm.sh/yjs@13.6.18?bundle"),
-      import("https://esm.sh/y-websocket@1.5.4?bundle"),
-      import("https://esm.sh/y-webrtc@10.3.0?bundle"),
-    ]).then(([Y, websocketModule, webrtcModule]) => ({
-      Y,
-      WebsocketProvider: websocketModule.WebsocketProvider,
-      WebrtcProvider: webrtcModule.WebrtcProvider,
-    }));
+    peerPresenceLibsPromise = (async () => {
+      try {
+        const [Y, websocketModule, webrtcModule] = await Promise.all([
+          importPeerModule([
+            "https://esm.sh/yjs@13.6.18?bundle",
+            "https://cdn.jsdelivr.net/npm/yjs@13.6.18/+esm",
+          ]),
+          importPeerModule([
+            "https://esm.sh/y-websocket@1.5.4?bundle",
+            "https://cdn.jsdelivr.net/npm/y-websocket@1.5.4/+esm",
+          ]),
+          importPeerModule([
+            "https://esm.sh/y-webrtc@10.3.0?bundle",
+            "https://cdn.jsdelivr.net/npm/y-webrtc@10.3.0/+esm",
+          ]),
+        ]);
+
+        return {
+          Y,
+          WebsocketProvider: websocketModule.WebsocketProvider,
+          WebrtcProvider: webrtcModule.WebrtcProvider,
+        };
+      } catch (error) {
+        peerPresenceLibsPromise = null;
+        throw error;
+      }
+    })();
   }
 
   return peerPresenceLibsPromise;
@@ -569,6 +601,7 @@ const state = {
     peerPresenceMap: null,
     peerHeartbeatTimer: 0,
     peerPollTimer: 0,
+    reconnectTimer: 0,
     refreshNow: null,
     connectToken: 0,
   },
@@ -910,6 +943,15 @@ function closePresenceConnections() {
     state.presence.peerPollTimer = 0;
   }
 
+  if (state.presence.reconnectTimer) {
+    try {
+      window.clearTimeout(state.presence.reconnectTimer);
+    } catch {
+      // ignore timer shutdown errors
+    }
+    state.presence.reconnectTimer = 0;
+  }
+
   state.presence.refreshNow = null;
   state.multi.connected = false;
   if (state.multi.sharedEvents && state.multi.sharedObserver) {
@@ -1098,6 +1140,14 @@ async function connectPeerPresence() {
   }];
   updateOnlinePanel();
 
+  const schedulePresenceRetry = () => {
+    if (state.presence.reconnectTimer) return;
+    state.presence.reconnectTimer = window.setTimeout(() => {
+      state.presence.reconnectTimer = 0;
+      connectPeerPresence();
+    }, 2500);
+  };
+
   try {
     const { Y, WebsocketProvider, WebrtcProvider } = await loadPeerPresenceLibs();
     if (state.presence.connectToken !== connectToken) return;
@@ -1178,10 +1228,17 @@ async function connectPeerPresence() {
     presenceMap.observe(syncUsersFromPresenceMap);
 
     providers.forEach((provider) => {
-      provider.on?.("status", () => {
+      provider.on?.("status", (event) => {
         if (state.presence.connectToken !== connectToken) return;
-        publishLocalPresence();
-        syncUsersFromPresenceMap();
+        if (event?.status === "connected") {
+          publishLocalPresence();
+          syncUsersFromPresenceMap();
+          return;
+        }
+
+        state.presence.connected = false;
+        updateOnlinePanel();
+        schedulePresenceRetry();
       });
       provider.on?.("sync", () => {
         if (state.presence.connectToken !== connectToken) return;
@@ -1216,6 +1273,7 @@ async function connectPeerPresence() {
       ? [{ id: state.presence.sessionId, clientId: state.presence.clientId, name: state.presence.nickname }]
       : [];
     updateOnlinePanel();
+    schedulePresenceRetry();
     console.warn("Presence fallback unavailable:", error);
   }
 }
