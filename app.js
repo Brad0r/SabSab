@@ -378,6 +378,10 @@ const PLAYER_MODES = {
   shuffle: "shuffle",
 };
 
+const PEER_PRESENCE_ROOM = "sabsab-salon-public";
+const PEER_PRESENCE_TTL_MS = 45000;
+const PEER_PRESENCE_HEARTBEAT_MS = 15000;
+
 function readSavedTheme() {
   try {
     return localStorage.getItem(STORAGE_KEYS.theme) === "dark" ? "dark" : "light";
@@ -525,6 +529,8 @@ const state = {
     stream: null,
     peerProviders: [],
     peerDoc: null,
+    peerPresenceMap: null,
+    peerHeartbeatTimer: 0,
     connectToken: 0,
   },
   home: {
@@ -806,8 +812,10 @@ function getSortedPresenceUsers(userList) {
     const normalizedUser = normalizePresenceUser(entry, `presence-${index}`);
     if (!normalizedUser) return;
 
-    const key = normalizedUser.id || `${normalizedUser.name}-${index}`;
-    if (!dedupedUsers.has(key)) {
+    const key = normalizedUser.name.toLocaleLowerCase("fr");
+    const existingUser = dedupedUsers.get(key);
+
+    if (!existingUser || normalizedUser.id === state.presence.sessionId) {
       dedupedUsers.set(key, normalizedUser);
     }
   });
@@ -824,6 +832,24 @@ function closePresenceConnections() {
       // ignore connection shutdown errors
     }
     state.presence.stream = null;
+  }
+
+  if (state.presence.peerHeartbeatTimer) {
+    try {
+      window.clearInterval(state.presence.peerHeartbeatTimer);
+    } catch {
+      // ignore timer shutdown errors
+    }
+    state.presence.peerHeartbeatTimer = 0;
+  }
+
+  if (state.presence.peerPresenceMap) {
+    try {
+      state.presence.peerPresenceMap.delete(state.presence.sessionId);
+    } catch {
+      // ignore shared-room cleanup errors
+    }
+    state.presence.peerPresenceMap = null;
   }
 
   if (Array.isArray(state.presence.peerProviders)) {
@@ -993,52 +1019,99 @@ async function connectPeerPresence() {
     if (state.presence.connectToken !== connectToken) return;
 
     const doc = new Y.Doc();
-    const roomName = "sabsab-salon-public";
+    const presenceMap = doc.getMap("presence");
     const providers = [
-      new WebsocketProvider("wss://demos.yjs.dev", roomName, doc),
-      new WebrtcProvider(roomName, doc, {
+      new WebsocketProvider("wss://demos.yjs.dev", PEER_PRESENCE_ROOM, doc),
+      new WebrtcProvider(PEER_PRESENCE_ROOM, doc, {
         signaling: ["wss://signaling.yjs.dev", "wss://signaling.y-webrtc.com"],
       }),
     ];
 
     state.presence.peerDoc = doc;
     state.presence.peerProviders = providers;
+    state.presence.peerPresenceMap = presenceMap;
+
+    const writeLocalPresence = () => {
+      if (state.presence.connectToken !== connectToken) return;
+
+      presenceMap.set(state.presence.sessionId, {
+        id: state.presence.sessionId,
+        clientId: state.presence.clientId,
+        name: state.presence.nickname,
+        lastSeen: Date.now(),
+      });
+    };
 
     const syncPeerUsers = () => {
+      if (state.presence.connectToken !== connectToken) return;
+
+      const now = Date.now();
       const nextUsers = [];
 
-      providers.forEach((provider, providerIndex) => {
-        provider.awareness.getStates().forEach((presenceState, awarenessClientId) => {
-          const userName = sanitizeNickname(presenceState?.user?.name);
-          const userId = String(
-            presenceState?.user?.clientId
-            || `${providerIndex}-${awarenessClientId}`
-          );
-
-          if (userName) {
-            nextUsers.push({ id: userId, name: userName });
+      presenceMap.forEach((value, key) => {
+        const lastSeen = Number(value?.lastSeen || 0);
+        if (lastSeen && now - lastSeen > PEER_PRESENCE_TTL_MS) {
+          if (key !== state.presence.sessionId) {
+            try {
+              presenceMap.delete(key);
+            } catch {
+              // ignore stale shared-room cleanup errors
+            }
           }
-        });
+          return;
+        }
+
+        const normalizedUser = normalizePresenceUser({ ...value, id: value?.id || key }, key);
+        if (normalizedUser) {
+          nextUsers.push(normalizedUser);
+        }
       });
 
-      nextUsers.unshift({ id: state.presence.sessionId, name: state.presence.nickname });
+      if (!nextUsers.some((user) => user.id === state.presence.sessionId)) {
+        nextUsers.push({ id: state.presence.sessionId, name: state.presence.nickname });
+      }
 
       state.presence.users = getSortedPresenceUsers(nextUsers);
       rememberSeenNicknames([state.presence.nickname, ...state.presence.users.map((user) => user.name)]);
-      state.presence.connected = true;
+      state.presence.connected = providers.some((provider) => Boolean(provider?.wsconnected || provider?.connected || provider?.synced));
       updateOnlinePanel();
     };
 
     providers.forEach((provider) => {
-      provider.on?.("status", syncPeerUsers);
-      provider.awareness.on("change", syncPeerUsers);
-      provider.awareness.setLocalStateField("user", {
-        name: state.presence.nickname,
-        clientId: state.presence.sessionId,
+      provider.on?.("status", (event) => {
+        if (state.presence.connectToken !== connectToken) return;
+        state.presence.connected = event?.status === "connected"
+          || providers.some((candidate) => Boolean(candidate?.wsconnected || candidate?.connected || candidate?.synced));
+        writeLocalPresence();
+        syncPeerUsers();
       });
+
+      provider.on?.("sync", () => {
+        writeLocalPresence();
+        syncPeerUsers();
+      });
+
+      try {
+        provider.awareness?.setLocalStateField("user", {
+          name: state.presence.nickname,
+          clientId: state.presence.sessionId,
+        });
+      } catch {
+        // ignore awareness sync errors, presence is stored in the shared doc map
+      }
     });
 
+    presenceMap.observe(() => {
+      syncPeerUsers();
+    });
+
+    writeLocalPresence();
     syncPeerUsers();
+
+    state.presence.peerHeartbeatTimer = window.setInterval(() => {
+      writeLocalPresence();
+      syncPeerUsers();
+    }, PEER_PRESENCE_HEARTBEAT_MS);
   } catch (error) {
     if (state.presence.connectToken !== connectToken) return;
 
@@ -1177,6 +1250,10 @@ function setupPresence() {
   }
 
   window.addEventListener("beforeunload", () => {
+    closePresenceConnections();
+  });
+
+  window.addEventListener("pagehide", () => {
     closePresenceConnections();
   });
 }
