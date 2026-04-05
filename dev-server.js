@@ -6,9 +6,13 @@ const PORT = Number(process.env.PORT) || 5500;
 const ROOT = __dirname;
 const LIVE_RELOAD_ROUTE = '/__events';
 const PRESENCE_ROUTE = '/__presence';
+const MULTI_ROUTE = '/__multi';
+const MAX_MULTI_HISTORY = 800;
 const reloadClients = new Set();
 const presenceClients = new Set();
 const presenceUsers = new Map();
+const multiClients = new Set();
+const multiEventHistory = [];
 const watchableExtensions = new Set(['.html', '.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.mp3', '.m4a', '.wav', '.ogg', '.mp4']);
 
 const MIME_TYPES = {
@@ -145,18 +149,22 @@ function broadcastReload(changedFile) {
   }
 }
 
+function writeSse(res, payload) {
+  res.write(`data: ${JSON.stringify(payload)}\n\n`);
+}
+
 function broadcastPresence() {
   const users = [...presenceUsers.entries()]
     .map(([clientId, entry]) => ({
       id: clientId,
+      clientId,
       name: entry?.name || '',
     }))
     .filter((entry) => entry.name)
     .sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
 
-  const payload = `data: ${JSON.stringify({ type: 'presence', users })}\n\n`;
   for (const client of presenceClients) {
-    client.write(payload);
+    writeSse(client, { type: 'presence', users });
   }
 }
 
@@ -211,6 +219,124 @@ function registerPresenceClient(req, res) {
   });
 }
 
+function sanitizePoint(point) {
+  if (!point || typeof point !== 'object') return null;
+  const x = Number(point.x);
+  const y = Number(point.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return {
+    x: Math.max(0, Math.min(1, Number(x.toFixed(4)))),
+    y: Math.max(0, Math.min(1, Number(y.toFixed(4)))),
+  };
+}
+
+function sanitizeMultiPayload(payload) {
+  if (!payload || typeof payload !== 'object') return null;
+
+  const type = String(payload.type || '').trim();
+  if (!type) return null;
+
+  const eventPayload = {
+    id: String(payload.id || `multi-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`),
+    type,
+    room: String(payload.room || 'sabsab-multi').trim().slice(0, 80),
+    name: String(payload.name || 'Invité').trim().slice(0, 20),
+    sessionId: String(payload.sessionId || '').trim().slice(0, 120),
+    ownerSessionId: String(payload.ownerSessionId || payload.sessionId || '').trim().slice(0, 120),
+    ts: Number(payload.ts || Date.now()),
+  };
+
+  if (typeof payload.noteId === 'string') {
+    eventPayload.noteId = payload.noteId.trim().slice(0, 40);
+  }
+  if (typeof payload.text === 'string') {
+    eventPayload.text = payload.text.trim().slice(0, 240);
+  }
+  if (typeof payload.color === 'string') {
+    eventPayload.color = payload.color.trim().slice(0, 20);
+  }
+  if (Number.isFinite(Number(payload.size))) {
+    eventPayload.size = Number(payload.size);
+  }
+  if (Array.isArray(payload.points)) {
+    eventPayload.points = payload.points.map(sanitizePoint).filter(Boolean).slice(0, 80);
+  }
+
+  return eventPayload;
+}
+
+function rememberMultiEvent(eventPayload) {
+  if (eventPayload.type === 'clear-own-canvas' && eventPayload.ownerSessionId) {
+    for (let index = multiEventHistory.length - 1; index >= 0; index -= 1) {
+      const entry = multiEventHistory[index];
+      if (!entry || entry.ownerSessionId !== eventPayload.ownerSessionId) continue;
+      if (entry.type === 'draw-segment' || entry.type === 'draw-stroke') {
+        multiEventHistory.splice(index, 1);
+      }
+    }
+  }
+
+  multiEventHistory.push(eventPayload);
+  if (multiEventHistory.length > MAX_MULTI_HISTORY) {
+    multiEventHistory.splice(0, multiEventHistory.length - MAX_MULTI_HISTORY);
+  }
+}
+
+function registerMultiClient(req, res) {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+  });
+  res.write('\n');
+
+  multiClients.add(res);
+  writeSse(res, { type: 'multi-ready', ok: true, events: multiEventHistory.length });
+  multiEventHistory.forEach((entry) => writeSse(res, entry));
+
+  req.on('close', () => {
+    multiClients.delete(res);
+  });
+}
+
+function readRequestBody(req) {
+  return new Promise((resolve, reject) => {
+    let raw = '';
+    req.on('data', (chunk) => {
+      raw += chunk;
+      if (raw.length > 1024 * 1024) {
+        reject(new Error('Payload trop volumineux.'));
+        req.destroy();
+      }
+    });
+    req.on('end', () => resolve(raw));
+    req.on('error', reject);
+  });
+}
+
+async function handleMultiPublish(req, res) {
+  try {
+    const rawBody = await readRequestBody(req);
+    const parsedBody = rawBody ? JSON.parse(rawBody) : null;
+    const eventPayload = sanitizeMultiPayload(parsedBody);
+
+    if (!eventPayload) {
+      sendText(res, 400, 'Événement multi invalide.');
+      return;
+    }
+
+    rememberMultiEvent(eventPayload);
+    multiClients.forEach((client) => writeSse(client, eventPayload));
+    res.writeHead(202, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-cache',
+    });
+    res.end(JSON.stringify({ ok: true, id: eventPayload.id }));
+  } catch (error) {
+    sendText(res, 500, error?.message || 'Impossible de publier l\'événement.');
+  }
+}
+
 function shouldTriggerReload(filename) {
   if (!filename) {
     return false;
@@ -223,7 +349,7 @@ function shouldTriggerReload(filename) {
   return watchableExtensions.has(path.extname(filename).toLowerCase());
 }
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
   if ((req.url || '').startsWith(LIVE_RELOAD_ROUTE)) {
     registerLiveReloadClient(req, res);
     return;
@@ -231,6 +357,16 @@ const server = http.createServer((req, res) => {
 
   if ((req.url || '').startsWith(PRESENCE_ROUTE)) {
     registerPresenceClient(req, res);
+    return;
+  }
+
+  if ((req.method || 'GET').toUpperCase() === 'GET' && (req.url || '').startsWith(MULTI_ROUTE)) {
+    registerMultiClient(req, res);
+    return;
+  }
+
+  if ((req.method || 'GET').toUpperCase() === 'POST' && (req.url || '').startsWith(`${MULTI_ROUTE}/publish`)) {
+    await handleMultiPublish(req, res);
     return;
   }
 

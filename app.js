@@ -407,6 +407,7 @@ const PLAYER_MODES = {
   shuffle: "shuffle",
 };
 
+const DEFAULT_PUBLIC_PRESENCE_URL = "https://sabsab-live.onrender.com";
 const PEER_PRESENCE_ROOM = "sabsab-salon-live-v4";
 const PEER_PRESENCE_TTL_MS = 45000;
 const PEER_PRESENCE_HEARTBEAT_MS = 1800;
@@ -574,12 +575,29 @@ function getPresenceBaseUrl() {
     return configuredUrl.replace(/\/+$/, "");
   }
 
+  if (typeof window !== "undefined" && /github\.io$/i.test(window.location.hostname)) {
+    return DEFAULT_PUBLIC_PRESENCE_URL;
+  }
+
   return window.location.origin;
 }
 
 function shouldUsePresenceServer() {
   if (typeof window === "undefined") return false;
   const host = window.location.hostname;
+  const baseUrl = getPresenceBaseUrl();
+
+  if (typeof baseUrl === "string" && baseUrl) {
+    try {
+      const resolvedOrigin = new URL(baseUrl, window.location.origin).origin;
+      if (resolvedOrigin !== window.location.origin) {
+        return true;
+      }
+    } catch {
+      // ignore invalid configured presence url and fall back to host detection
+    }
+  }
+
   return host === "localhost" || host === "127.0.0.1" || host.endsWith(".onrender.com");
 }
 
@@ -972,6 +990,18 @@ function clearPresenceRetryTimer() {
   state.presence.reconnectTimer = 0;
 }
 
+function clearMultiRetryTimer() {
+  if (!state.multi.reconnectTimer) return;
+
+  try {
+    window.clearTimeout(state.multi.reconnectTimer);
+  } catch {
+    // ignore timer shutdown errors
+  }
+
+  state.multi.reconnectTimer = 0;
+}
+
 function closePresenceConnections() {
   if (state.presence.stream) {
     try {
@@ -1001,6 +1031,16 @@ function closePresenceConnections() {
   }
 
   clearPresenceRetryTimer();
+  clearMultiRetryTimer();
+
+  if (state.multi.stream) {
+    try {
+      state.multi.stream.close();
+    } catch {
+      // ignore stream shutdown errors
+    }
+    state.multi.stream = null;
+  }
 
   state.presence.refreshNow = null;
   state.multi.connected = false;
@@ -2996,6 +3036,29 @@ async function sendMultiRealtimeEvent(payload, applyLocally = true) {
     rememberMultiEventId(eventPayload.id);
   }
 
+  const shouldUseMultiServer = state.presence.mode === "server" && shouldUsePresenceServer() && typeof fetch === "function";
+  if (shouldUseMultiServer) {
+    const response = await fetch(`${getPresenceBaseUrl()}/__multi/publish`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(eventPayload),
+      keepalive: payload.type !== "draw-segment",
+      mode: "cors",
+    });
+
+    if (!response.ok) {
+      state.multi.connected = false;
+      renderMultiChatMessages();
+      throw new Error(`Multi server unavailable (${response.status})`);
+    }
+
+    state.multi.connected = true;
+    renderMultiChatMessages();
+    return eventPayload;
+  }
+
   const sharedEvents = state.multi.sharedEvents || state.presence.peerDoc?.getArray?.("multi-events");
   if (!sharedEvents) {
     connectPresenceStream();
@@ -3135,11 +3198,117 @@ function applyMultiRealtimeEvent(payload) {
   }
 }
 
+function connectMultiServer(forceReconnect = false) {
+  if (!state.presence.nickname || state.presence.mode !== "server" || typeof EventSource === "undefined") {
+    return false;
+  }
+
+  if (!forceReconnect && state.multi.stream && state.multi.connected) {
+    renderMultiChatMessages();
+    return true;
+  }
+
+  clearMultiRetryTimer();
+
+  if (state.multi.stream) {
+    try {
+      state.multi.stream.close();
+    } catch {
+      // ignore stream shutdown errors
+    }
+    state.multi.stream = null;
+  }
+
+  const connectToken = ++state.multi.connectToken;
+  const streamUrl = `${getPresenceBaseUrl()}/__multi?clientId=${encodeURIComponent(state.presence.sessionId)}&name=${encodeURIComponent(state.presence.nickname)}`;
+  const stream = new EventSource(streamUrl);
+  state.multi.stream = stream;
+  state.multi.connected = false;
+  renderMultiChatMessages();
+
+  const scheduleReconnect = () => {
+    if (state.multi.reconnectTimer) return;
+    state.multi.reconnectTimer = window.setTimeout(() => {
+      state.multi.reconnectTimer = 0;
+      if (state.multi.connectToken !== connectToken) return;
+      connectMultiRealtime(true);
+    }, 2500);
+  };
+
+  stream.onopen = () => {
+    if (state.multi.connectToken !== connectToken) return;
+    clearMultiRetryTimer();
+    state.multi.connected = true;
+    renderMultiChatMessages();
+  };
+
+  stream.onmessage = (event) => {
+    if (state.multi.connectToken !== connectToken) return;
+
+    try {
+      const payload = JSON.parse(event.data);
+      if (payload?.type === "multi-ready") {
+        state.multi.connected = true;
+        renderMultiChatMessages();
+        return;
+      }
+
+      if (payload && typeof payload === "object") {
+        applyMultiRealtimeEvent(payload);
+        state.multi.connected = true;
+        renderMultiChatMessages();
+      }
+    } catch {
+      // ignore malformed multi payloads
+    }
+  };
+
+  stream.onerror = () => {
+    if (state.multi.connectToken !== connectToken) return;
+
+    state.multi.connected = false;
+    renderMultiChatMessages();
+
+    try {
+      stream.close();
+    } catch {
+      // ignore stream close errors
+    }
+
+    if (state.multi.stream === stream) {
+      state.multi.stream = null;
+    }
+
+    if (state.presence.mode === "server") {
+      scheduleReconnect();
+    }
+  };
+
+  return true;
+}
+
 function connectMultiRealtime(forceReconnect = false) {
   if (!state.presence.nickname) {
     state.multi.connected = false;
     renderMultiChatMessages();
     return;
+  }
+
+  if (state.presence.mode === "server") {
+    if (state.multi.sharedEvents && state.multi.sharedObserver) {
+      try {
+        state.multi.sharedEvents.unobserve(state.multi.sharedObserver);
+      } catch {
+        // ignore shared observer cleanup errors
+      }
+    }
+    state.multi.sharedEvents = null;
+    state.multi.sharedObserver = null;
+    state.multi.sharedBoundDoc = null;
+
+    if (connectMultiServer(forceReconnect)) {
+      return;
+    }
   }
 
   if (!state.presence.peerDoc) {
