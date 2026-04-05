@@ -814,7 +814,11 @@ function closePresenceConnections() {
 function updateOnlinePanel() {
   if (!el.onlineStatus || !el.onlineCount || !el.onlineUsersList) return;
 
-  const liveUsers = getSortedPresenceUsers(state.presence.users || []);
+  const liveUsers = getSortedPresenceUsers(
+    state.presence.mode === "p2p" && state.presence.nickname
+      ? [state.presence.nickname, ...(state.presence.users || [])]
+      : (state.presence.users || [])
+  );
 
   const knownUsers = rememberSeenNicknames([state.presence.nickname, ...liveUsers]);
   const displayUsers = knownUsers.length ? knownUsers : liveUsers;
@@ -934,12 +938,14 @@ async function connectPeerPresence() {
     if (state.presence.connectToken !== connectToken) return;
 
     const doc = new Y.Doc();
-    const provider = new WebrtcProvider("sabsab-salon-public", doc);
+    const provider = new WebrtcProvider("sabsab-salon-public", doc, {
+      signaling: ["wss://signaling.yjs.dev"],
+    });
     state.presence.peerDoc = doc;
     state.presence.peerProvider = provider;
 
     const syncPeerUsers = () => {
-      const nextUsers = [];
+      const nextUsers = [state.presence.nickname];
       provider.awareness.getStates().forEach((presenceState) => {
         const userName = sanitizeNickname(presenceState?.user?.name);
         if (userName) {
