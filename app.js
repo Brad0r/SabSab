@@ -482,6 +482,28 @@ function getPresenceBaseUrl() {
   return window.location.origin;
 }
 
+function shouldUsePresenceServer() {
+  if (typeof window === "undefined") return false;
+  const host = window.location.hostname;
+  return host === "localhost" || host === "127.0.0.1" || host.endsWith(".onrender.com");
+}
+
+let peerPresenceLibsPromise = null;
+
+async function loadPeerPresenceLibs() {
+  if (!peerPresenceLibsPromise) {
+    peerPresenceLibsPromise = Promise.all([
+      import("https://esm.sh/yjs@13.6.18?bundle"),
+      import("https://esm.sh/y-webrtc@10.3.0?bundle"),
+    ]).then(([Y, webrtcModule]) => ({
+      Y,
+      WebrtcProvider: webrtcModule.WebrtcProvider,
+    }));
+  }
+
+  return peerPresenceLibsPromise;
+}
+
 const state = {
   theme: readSavedTheme(),
   presence: {
@@ -490,7 +512,11 @@ const state = {
     users: [],
     knownUsers: readSeenNicknames(),
     connected: false,
+    mode: "idle",
     stream: null,
+    peerProvider: null,
+    peerDoc: null,
+    connectToken: 0,
   },
   home: {
     total: 7,
@@ -748,13 +774,47 @@ function toggleTheme(forceTheme) {
   saveThemePreference();
 }
 
-function updateOnlinePanel() {
-  if (!el.onlineStatus || !el.onlineCount || !el.onlineUsersList) return;
-
-  const liveUsers = [...new Set((state.presence.users || [])
+function getSortedPresenceUsers(userList) {
+  return [...new Set((userList || [])
     .map(sanitizeNickname)
     .filter(Boolean))]
     .sort((a, b) => a.localeCompare(b, "fr", { sensitivity: "base" }));
+}
+
+function closePresenceConnections() {
+  if (state.presence.stream) {
+    try {
+      state.presence.stream.close();
+    } catch {
+      // ignore connection shutdown errors
+    }
+    state.presence.stream = null;
+  }
+
+  if (state.presence.peerProvider) {
+    try {
+      state.presence.peerProvider.awareness?.setLocalState(null);
+      state.presence.peerProvider.destroy();
+    } catch {
+      // ignore connection shutdown errors
+    }
+    state.presence.peerProvider = null;
+  }
+
+  if (state.presence.peerDoc) {
+    try {
+      state.presence.peerDoc.destroy();
+    } catch {
+      // ignore document shutdown errors
+    }
+    state.presence.peerDoc = null;
+  }
+}
+
+function updateOnlinePanel() {
+  if (!el.onlineStatus || !el.onlineCount || !el.onlineUsersList) return;
+
+  const liveUsers = getSortedPresenceUsers(state.presence.users || []);
 
   const knownUsers = rememberSeenNicknames([state.presence.nickname, ...liveUsers]);
   const displayUsers = knownUsers.length ? knownUsers : liveUsers;
@@ -765,7 +825,11 @@ function updateOnlinePanel() {
   if (!state.presence.nickname) {
     el.onlineStatus.textContent = "Choisis ton pseudo pour apparaître en direct.";
   } else if (state.presence.connected) {
-    el.onlineStatus.textContent = `Connecté en direct en tant que ${state.presence.nickname}.`;
+    el.onlineStatus.textContent = state.presence.mode === "p2p"
+      ? `Salon partagé actif en tant que ${state.presence.nickname}.`
+      : `Connecté en direct en tant que ${state.presence.nickname}.`;
+  } else if (state.presence.mode === "p2p") {
+    el.onlineStatus.textContent = `Connexion du salon partagé pour ${state.presence.nickname}...`;
   } else {
     el.onlineStatus.textContent = `Connexion en cours pour ${state.presence.nickname}...`;
   }
@@ -851,16 +915,82 @@ function saveNicknameAndConnect() {
   updateOnlinePanel();
 }
 
-function connectPresenceStream() {
-  if (!state.presence.nickname || typeof EventSource === "undefined") {
+async function connectPeerPresence() {
+  if (!state.presence.nickname) {
     state.presence.connected = false;
     updateOnlinePanel();
     return;
   }
 
-  if (state.presence.stream) {
-    state.presence.stream.close();
+  const connectToken = ++state.presence.connectToken;
+  closePresenceConnections();
+  state.presence.mode = "p2p";
+  state.presence.connected = false;
+  state.presence.users = [state.presence.nickname];
+  updateOnlinePanel();
+
+  try {
+    const { Y, WebrtcProvider } = await loadPeerPresenceLibs();
+    if (state.presence.connectToken !== connectToken) return;
+
+    const doc = new Y.Doc();
+    const provider = new WebrtcProvider("sabsab-salon-public", doc);
+    state.presence.peerDoc = doc;
+    state.presence.peerProvider = provider;
+
+    const syncPeerUsers = () => {
+      const nextUsers = [];
+      provider.awareness.getStates().forEach((presenceState) => {
+        const userName = sanitizeNickname(presenceState?.user?.name);
+        if (userName) {
+          nextUsers.push(userName);
+        }
+      });
+
+      state.presence.users = getSortedPresenceUsers(nextUsers);
+      rememberSeenNicknames([state.presence.nickname, ...state.presence.users]);
+      state.presence.connected = true;
+      updateOnlinePanel();
+    };
+
+    provider.on("status", (event) => {
+      state.presence.connected = event?.status === "connected" || Boolean((state.presence.users || []).length);
+      updateOnlinePanel();
+    });
+
+    provider.awareness.on("change", syncPeerUsers);
+    provider.awareness.setLocalStateField("user", {
+      name: state.presence.nickname,
+      clientId: state.presence.clientId,
+    });
+
+    syncPeerUsers();
+  } catch (error) {
+    if (state.presence.connectToken !== connectToken) return;
+
+    state.presence.mode = "offline";
+    state.presence.connected = false;
+    state.presence.users = state.presence.nickname ? [state.presence.nickname] : [];
+    updateOnlinePanel();
+    console.warn("Presence fallback unavailable:", error);
   }
+}
+
+function connectPresenceStream() {
+  if (!state.presence.nickname) {
+    state.presence.connected = false;
+    updateOnlinePanel();
+    return;
+  }
+
+  if (!shouldUsePresenceServer() || typeof EventSource === "undefined") {
+    connectPeerPresence();
+    return;
+  }
+
+  const connectToken = ++state.presence.connectToken;
+  closePresenceConnections();
+  state.presence.mode = "server";
 
   const presenceBaseUrl = getPresenceBaseUrl();
   const presenceUrl = `${presenceBaseUrl}/__presence?name=${encodeURIComponent(state.presence.nickname)}&clientId=${encodeURIComponent(state.presence.clientId)}`;
@@ -868,6 +998,7 @@ function connectPresenceStream() {
   state.presence.stream = stream;
 
   stream.onopen = () => {
+    if (state.presence.connectToken !== connectToken) return;
     state.presence.connected = true;
     updateOnlinePanel();
   };
@@ -886,9 +1017,14 @@ function connectPresenceStream() {
   };
 
   stream.onerror = () => {
+    if (state.presence.connectToken !== connectToken) return;
     state.presence.connected = false;
     state.presence.users = [];
     updateOnlinePanel();
+
+    if (typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+      connectPeerPresence();
+    }
   };
 }
 
@@ -964,9 +1100,7 @@ function setupPresence() {
   }
 
   window.addEventListener("beforeunload", () => {
-    if (state.presence.stream) {
-      state.presence.stream.close();
-    }
+    closePresenceConnections();
   });
 }
 
