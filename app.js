@@ -379,9 +379,9 @@ const PLAYER_MODES = {
 };
 
 const PEER_PRESENCE_ROOM = "sabsab-salon-public";
-const PEER_PRESENCE_TTL_MS = 15000;
-const PEER_PRESENCE_HEARTBEAT_MS = 4000;
-const PEER_PRESENCE_POLL_MS = 1200;
+const PEER_PRESENCE_TTL_MS = 8000;
+const PEER_PRESENCE_HEARTBEAT_MS = 1200;
+const PEER_PRESENCE_POLL_MS = 400;
 const PUBLIC_PRESENCE_TOPIC = "sabsab-live-presence";
 const PUBLIC_PRESENCE_POST_URL = `https://ntfy.sh/${PUBLIC_PRESENCE_TOPIC}`;
 const PUBLIC_PRESENCE_STREAM_URL = `https://ntfy.sh/${PUBLIC_PRESENCE_TOPIC}/sse?since=1m`;
@@ -1326,6 +1326,10 @@ function setupPresence() {
     if (document.visibilityState === "visible") {
       refreshPresenceImmediately();
     }
+  });
+
+  window.addEventListener("online", () => {
+    refreshPresenceImmediately();
   });
 
   const sendOfflinePresenceSignal = () => {
