@@ -379,16 +379,12 @@ const PLAYER_MODES = {
 };
 
 const PEER_PRESENCE_ROOM = "sabsab-salon-public";
-const PEER_PRESENCE_TTL_MS = 20000;
-const PEER_PRESENCE_HEARTBEAT_MS = 3000;
-const PEER_PRESENCE_POLL_MS = 1800;
-const PUBLIC_PRESENCE_WEBHOOK_ID = "eb0e1985-838b-44b3-be24-5209929f010c";
-const PUBLIC_PRESENCE_POST_URL = `https://webhook.site/${PUBLIC_PRESENCE_WEBHOOK_ID}`;
-
-function getPublicPresenceReadUrl() {
-  const targetUrl = `https://webhook.site/token/${PUBLIC_PRESENCE_WEBHOOK_ID}/requests?sorting=newest&page=1&_=${Date.now()}`;
-  return `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
-}
+const PEER_PRESENCE_TTL_MS = 15000;
+const PEER_PRESENCE_HEARTBEAT_MS = 4000;
+const PEER_PRESENCE_POLL_MS = 1200;
+const PUBLIC_PRESENCE_TOPIC = "sabsab-live-presence";
+const PUBLIC_PRESENCE_POST_URL = `https://ntfy.sh/${PUBLIC_PRESENCE_TOPIC}`;
+const PUBLIC_PRESENCE_STREAM_URL = `https://ntfy.sh/${PUBLIC_PRESENCE_TOPIC}/sse?since=1m`;
 
 function readSavedTheme() {
   try {
@@ -1033,85 +1029,30 @@ async function connectPeerPresence() {
   state.presence.mode = "shared";
   state.presence.connected = false;
   state.presence.users = [{ id: state.presence.sessionId, name: state.presence.nickname }];
+  state.presence.peerPresenceMap = new Map();
   updateOnlinePanel();
 
-  const postPresenceHeartbeat = async (status = "online", useBeacon = false) => {
+  const sessions = state.presence.peerPresenceMap;
+
+  const syncUsersFromSessions = () => {
     if (state.presence.connectToken !== connectToken) return;
 
-    const params = new URLSearchParams({
-      site: "sabsab",
-      room: PEER_PRESENCE_ROOM,
-      sessionId: state.presence.sessionId,
-      clientId: state.presence.clientId,
-      name: state.presence.nickname,
-      status,
-      ts: String(Date.now()),
-    });
-
-    if (useBeacon && navigator?.sendBeacon) {
-      try {
-        navigator.sendBeacon(PUBLIC_PRESENCE_POST_URL, params);
-        return;
-      } catch {
-        // fallback to fetch below
-      }
-    }
-
-    await fetch(PUBLIC_PRESENCE_POST_URL, {
-      method: "POST",
-      mode: "cors",
-      cache: "no-store",
-      keepalive: true,
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-      },
-      body: params.toString(),
-    });
-  };
-
-  const refreshPresenceUsers = async () => {
-    if (state.presence.connectToken !== connectToken) return;
-
-    const response = await fetch(getPublicPresenceReadUrl(), {
-      cache: "no-store",
-    });
-    if (!response.ok) {
-      throw new Error(`Presence read failed (${response.status})`);
-    }
-
-    const proxyPayload = await response.json();
-    const relayPayload = JSON.parse(proxyPayload?.contents || "{}");
-    const requestEntries = Array.isArray(relayPayload?.data) ? relayPayload.data : [];
     const now = Date.now();
-    const sessions = new Map();
+    const nextUsers = [];
 
-    requestEntries.forEach((entry) => {
-      if ((entry?.method || "").toUpperCase() !== "POST") return;
+    sessions.forEach((entry, sessionId) => {
+      if (!entry) return;
 
-      const request = entry?.request;
-      if (!request || request.site !== "sabsab" || request.room !== PEER_PRESENCE_ROOM) return;
+      if (entry.status === "offline" || now - Number(entry.lastSeen || 0) > PEER_PRESENCE_TTL_MS) {
+        sessions.delete(sessionId);
+        return;
+      }
 
-      const sessionId = String(request.sessionId || "").trim();
-      const userName = sanitizeNickname(request.name);
-      const status = String(request.status || "online").trim().toLowerCase();
-      const timestamp = Number(request.ts || 0);
-
-      if (!sessionId || !userName || !Number.isFinite(timestamp)) return;
-
-      const previous = sessions.get(sessionId);
-      if (!previous || timestamp > previous.lastSeen) {
-        sessions.set(sessionId, {
-          id: sessionId,
-          name: userName,
-          lastSeen: timestamp,
-          status,
-        });
+      const normalizedUser = normalizePresenceUser({ id: sessionId, name: entry.name }, sessionId);
+      if (normalizedUser) {
+        nextUsers.push(normalizedUser);
       }
     });
-
-    const nextUsers = [...sessions.values()]
-      .filter((entry) => entry.status !== "offline" && now - entry.lastSeen <= PEER_PRESENCE_TTL_MS)
-      .map(({ id, name }) => ({ id, name }));
 
     if (!nextUsers.some((user) => user.id === state.presence.sessionId)) {
       nextUsers.push({ id: state.presence.sessionId, name: state.presence.nickname });
@@ -1119,50 +1060,130 @@ async function connectPeerPresence() {
 
     state.presence.users = getSortedPresenceUsers(nextUsers);
     rememberSeenNicknames([state.presence.nickname, ...state.presence.users.map((user) => user.name)]);
-    state.presence.connected = true;
     updateOnlinePanel();
   };
 
-  let syncInFlight = false;
+  const recordPresencePayload = (payload) => {
+    if (!payload || payload.site !== "sabsab" || payload.room !== PEER_PRESENCE_ROOM) return;
 
-  const syncPresenceNow = async () => {
-    if (state.presence.connectToken !== connectToken || syncInFlight) return;
-    syncInFlight = true;
+    const sessionId = String(payload.sessionId || "").trim();
+    const userName = sanitizeNickname(payload.name);
+    const status = String(payload.status || "online").trim().toLowerCase();
+    const timestamp = Number(payload.ts || Date.now());
+
+    if (!sessionId || !userName) return;
+
+    sessions.set(sessionId, {
+      id: sessionId,
+      name: userName,
+      status,
+      lastSeen: Number.isFinite(timestamp) ? timestamp : Date.now(),
+    });
+
+    state.presence.connected = true;
+    syncUsersFromSessions();
+  };
+
+  const postPresenceHeartbeat = async (status = "online", useBeacon = false) => {
+    if (state.presence.connectToken !== connectToken) return;
+
+    const payload = JSON.stringify({
+      site: "sabsab",
+      room: PEER_PRESENCE_ROOM,
+      sessionId: state.presence.sessionId,
+      clientId: state.presence.clientId,
+      name: state.presence.nickname,
+      status,
+      ts: Date.now(),
+    });
+
+    if (useBeacon && navigator?.sendBeacon) {
+      try {
+        const blob = new Blob([payload], { type: "text/plain;charset=UTF-8" });
+        navigator.sendBeacon(PUBLIC_PRESENCE_POST_URL, blob);
+        recordPresencePayload(JSON.parse(payload));
+        return;
+      } catch {
+        // fallback to fetch below
+      }
+    }
+
+    const response = await fetch(PUBLIC_PRESENCE_POST_URL, {
+      method: "POST",
+      mode: "cors",
+      cache: "no-store",
+      keepalive: true,
+      headers: {
+        "Content-Type": "text/plain;charset=UTF-8",
+      },
+      body: payload,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Presence write failed (${response.status})`);
+    }
+
+    recordPresencePayload(JSON.parse(payload));
+  };
+
+  const handlePresenceEvent = (event) => {
+    if (state.presence.connectToken !== connectToken) return;
 
     try {
-      await postPresenceHeartbeat();
-      await refreshPresenceUsers();
-      state.presence.connected = true;
-    } catch (error) {
-      if (state.presence.connectToken !== connectToken) return;
-      state.presence.connected = false;
-      updateOnlinePanel();
-      console.warn("Presence sync retry:", error);
-    } finally {
-      syncInFlight = false;
+      const envelope = JSON.parse(event.data || "{}");
+      if (envelope.event !== "message" || !envelope.message) return;
+      const payload = JSON.parse(envelope.message);
+      recordPresencePayload(payload);
+    } catch {
+      // ignore malformed shared presence payloads
     }
   };
 
-  state.presence.refreshNow = () => {
-    void syncPresenceNow();
-  };
+  try {
+    const stream = new EventSource(PUBLIC_PRESENCE_STREAM_URL);
+    state.presence.stream = stream;
 
-  state.presence.peerHeartbeatTimer = window.setInterval(() => {
-    void syncPresenceNow();
-  }, PEER_PRESENCE_HEARTBEAT_MS);
+    stream.onopen = () => {
+      if (state.presence.connectToken !== connectToken) return;
+      state.presence.connected = true;
+      updateOnlinePanel();
+    };
 
-  state.presence.peerPollTimer = window.setInterval(() => {
-    void refreshPresenceUsers().catch(() => {
+    stream.onmessage = handlePresenceEvent;
+    stream.addEventListener?.("message", handlePresenceEvent);
+
+    stream.onerror = () => {
       if (state.presence.connectToken !== connectToken) return;
       state.presence.connected = false;
       updateOnlinePanel();
-    });
-  }, PEER_PRESENCE_POLL_MS);
+    };
 
-  void syncPresenceNow();
-  window.setTimeout(() => {
-    void syncPresenceNow();
-  }, 900);
+    state.presence.refreshNow = () => {
+      void postPresenceHeartbeat().catch(() => {});
+      syncUsersFromSessions();
+    };
+
+    await postPresenceHeartbeat();
+    syncUsersFromSessions();
+
+    state.presence.peerHeartbeatTimer = window.setInterval(() => {
+      void postPresenceHeartbeat().catch(() => {});
+    }, PEER_PRESENCE_HEARTBEAT_MS);
+
+    state.presence.peerPollTimer = window.setInterval(() => {
+      syncUsersFromSessions();
+    }, PEER_PRESENCE_POLL_MS);
+  } catch (error) {
+    if (state.presence.connectToken !== connectToken) return;
+
+    state.presence.mode = "offline";
+    state.presence.connected = false;
+    state.presence.users = state.presence.nickname
+      ? [{ id: state.presence.sessionId, name: state.presence.nickname }]
+      : [];
+    updateOnlinePanel();
+    console.warn("Presence fallback unavailable:", error);
+  }
 }
 
 function connectPresenceStream() {
@@ -1307,47 +1328,34 @@ function setupPresence() {
     }
   });
 
-  window.addEventListener("beforeunload", () => {
-    if (!shouldUsePresenceServer() && state.presence.nickname) {
-      const params = new URLSearchParams({
-        site: "sabsab",
-        room: PEER_PRESENCE_ROOM,
-        sessionId: state.presence.sessionId,
-        clientId: state.presence.clientId,
-        name: state.presence.nickname,
-        status: "offline",
-        ts: String(Date.now()),
-      });
+  const sendOfflinePresenceSignal = () => {
+    if (shouldUsePresenceServer() || !state.presence.nickname) return;
 
-      try {
-        navigator.sendBeacon?.(PUBLIC_PRESENCE_POST_URL, params);
-      } catch {
-        // ignore unload presence errors
-      }
+    const payload = JSON.stringify({
+      site: "sabsab",
+      room: PEER_PRESENCE_ROOM,
+      sessionId: state.presence.sessionId,
+      clientId: state.presence.clientId,
+      name: state.presence.nickname,
+      status: "offline",
+      ts: Date.now(),
+    });
+
+    try {
+      const blob = new Blob([payload], { type: "text/plain;charset=UTF-8" });
+      navigator.sendBeacon?.(PUBLIC_PRESENCE_POST_URL, blob);
+    } catch {
+      // ignore unload presence errors
     }
+  };
 
+  window.addEventListener("beforeunload", () => {
+    sendOfflinePresenceSignal();
     closePresenceConnections();
   });
 
   window.addEventListener("pagehide", () => {
-    if (!shouldUsePresenceServer() && state.presence.nickname) {
-      const params = new URLSearchParams({
-        site: "sabsab",
-        room: PEER_PRESENCE_ROOM,
-        sessionId: state.presence.sessionId,
-        clientId: state.presence.clientId,
-        name: state.presence.nickname,
-        status: "offline",
-        ts: String(Date.now()),
-      });
-
-      try {
-        navigator.sendBeacon?.(PUBLIC_PRESENCE_POST_URL, params);
-      } catch {
-        // ignore unload presence errors
-      }
-    }
-
+    sendOfflinePresenceSignal();
     closePresenceConnections();
   });
 }
