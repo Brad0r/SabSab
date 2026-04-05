@@ -2428,12 +2428,12 @@ function getSkyKeyboardBinding(event) {
   if (!event) return null;
 
   const typedKey = typeof event.key === "string" ? event.key : "";
+  const aliasMatch = SKY_PIANO_LAYOUT.find((binding) => binding.aliases.includes(typedKey));
+  if (aliasMatch) {
+    return aliasMatch;
+  }
 
   return SKY_PIANO_LAYOUT.find((binding) => {
-    if (binding.aliases.includes(typedKey)) {
-      return true;
-    }
-
     const isLetterKey = /^[A-Z]$/.test(binding.keyLabel);
     return isLetterKey && binding.codes.includes(event.code);
   }) || null;
