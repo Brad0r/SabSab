@@ -408,9 +408,9 @@ const PLAYER_MODES = {
 };
 
 const PEER_PRESENCE_ROOM = "sabsab-salon-live-v4";
-const PEER_PRESENCE_TTL_MS = 12000;
+const PEER_PRESENCE_TTL_MS = 45000;
 const PEER_PRESENCE_HEARTBEAT_MS = 1800;
-const PEER_PRESENCE_POLL_MS = 700;
+const PEER_PRESENCE_POLL_MS = 1200;
 const PUBLIC_PRESENCE_TOPIC = "sabsab-live-presence";
 const PUBLIC_PRESENCE_POST_URL = `https://ntfy.sh/${PUBLIC_PRESENCE_TOPIC}`;
 const PUBLIC_PRESENCE_STREAM_URL = `https://ntfy.sh/${PUBLIC_PRESENCE_TOPIC}/sse?since=1m`;
@@ -965,6 +965,18 @@ function getSortedPresenceUsers(userList) {
     .sort((a, b) => a.name.localeCompare(b.name, "fr", { sensitivity: "base" }));
 }
 
+function clearPresenceRetryTimer() {
+  if (!state.presence.reconnectTimer) return;
+
+  try {
+    window.clearTimeout(state.presence.reconnectTimer);
+  } catch {
+    // ignore timer shutdown errors
+  }
+
+  state.presence.reconnectTimer = 0;
+}
+
 function closePresenceConnections() {
   if (state.presence.stream) {
     try {
@@ -993,14 +1005,7 @@ function closePresenceConnections() {
     state.presence.peerPollTimer = 0;
   }
 
-  if (state.presence.reconnectTimer) {
-    try {
-      window.clearTimeout(state.presence.reconnectTimer);
-    } catch {
-      // ignore timer shutdown errors
-    }
-    state.presence.reconnectTimer = 0;
-  }
+  clearPresenceRetryTimer();
 
   state.presence.refreshNow = null;
   state.multi.connected = false;
@@ -1190,12 +1195,20 @@ async function connectPeerPresence() {
   }];
   updateOnlinePanel();
 
+  const isAnyProviderLive = () => (state.presence.peerProviders || []).some((provider) => {
+    const providerStatus = String(provider?.__sabsabStatus || "").toLowerCase();
+    return providerStatus === "connected" || Boolean(provider?.wsconnected || provider?.connected || provider?.synced);
+  });
+
   const schedulePresenceRetry = () => {
     if (state.presence.reconnectTimer) return;
     state.presence.reconnectTimer = window.setTimeout(() => {
       state.presence.reconnectTimer = 0;
-      connectPeerPresence();
-    }, 2500);
+      if (state.presence.connectToken !== connectToken) return;
+      if (!isAnyProviderLive()) {
+        connectPeerPresence();
+      }
+    }, 4000);
   };
 
   try {
@@ -1210,6 +1223,10 @@ async function connectPeerPresence() {
         signaling: ["wss://signaling.yjs.dev", "wss://signaling.y-webrtc.com"],
       }),
     ];
+
+    providers.forEach((provider) => {
+      provider.__sabsabStatus = "connecting";
+    });
 
     state.presence.peerDoc = doc;
     state.presence.peerPresenceMap = presenceMap;
@@ -1258,7 +1275,7 @@ async function connectPeerPresence() {
 
       state.presence.users = getSortedPresenceUsers(nextUsers);
       rememberSeenNicknames([state.presence.nickname, ...state.presence.users.map((user) => user.name)]);
-      state.presence.connected = providers.some((provider) => Boolean(provider?.connected || provider?.wsconnected || provider?.synced));
+      state.presence.connected = isAnyProviderLive();
       updateOnlinePanel();
       connectMultiRealtime();
     };
@@ -1280,18 +1297,28 @@ async function connectPeerPresence() {
     providers.forEach((provider) => {
       provider.on?.("status", (event) => {
         if (state.presence.connectToken !== connectToken) return;
-        if (event?.status === "connected") {
+
+        const nextStatus = String(event?.status || "").toLowerCase();
+        provider.__sabsabStatus = nextStatus || provider.__sabsabStatus || "connecting";
+
+        if (nextStatus === "connected") {
+          clearPresenceRetryTimer();
           publishLocalPresence();
           syncUsersFromPresenceMap();
           return;
         }
 
-        state.presence.connected = false;
+        state.presence.connected = isAnyProviderLive();
         updateOnlinePanel();
-        schedulePresenceRetry();
+
+        if (["disconnected", "closed", "failed", "error"].includes(nextStatus) && !isAnyProviderLive()) {
+          schedulePresenceRetry();
+        }
       });
-      provider.on?.("sync", () => {
+      provider.on?.("sync", (isSynced) => {
         if (state.presence.connectToken !== connectToken) return;
+        if (isSynced === false) return;
+        clearPresenceRetryTimer();
         publishLocalPresence();
         syncUsersFromPresenceMap();
       });
