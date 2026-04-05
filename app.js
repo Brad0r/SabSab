@@ -577,6 +577,9 @@ const state = {
     stream: null,
     reconnectTimer: 0,
     connectToken: 0,
+    sharedEvents: null,
+    sharedObserver: null,
+    sharedBoundDoc: null,
     messages: [],
     seenEventIds: [],
     canvasEvents: [],
@@ -847,16 +850,17 @@ function toggleTheme(forceTheme) {
 function normalizePresenceUser(userEntry, fallbackId = "") {
   if (typeof userEntry === "string") {
     const safeName = sanitizeNickname(userEntry);
-    return safeName ? { id: fallbackId || safeName, name: safeName } : null;
+    return safeName ? { id: fallbackId || safeName, clientId: "", name: safeName } : null;
   }
 
   if (!userEntry || typeof userEntry !== "object") return null;
 
   const safeName = sanitizeNickname(userEntry.name || userEntry.nickname);
-  const safeId = String(userEntry.id || userEntry.clientId || fallbackId || safeName || "");
+  const safeId = String(userEntry.id || fallbackId || userEntry.clientId || safeName || "");
+  const safeClientId = String(userEntry.clientId || safeId || "");
   if (!safeName) return null;
 
-  return { id: safeId, name: safeName };
+  return { id: safeId, clientId: safeClientId, name: safeName };
 }
 
 function getSortedPresenceUsers(userList) {
@@ -866,7 +870,7 @@ function getSortedPresenceUsers(userList) {
     const normalizedUser = normalizePresenceUser(entry, `presence-${index}`);
     if (!normalizedUser) return;
 
-    const key = normalizedUser.name.toLocaleLowerCase("fr");
+    const key = normalizedUser.clientId || normalizedUser.id || normalizedUser.name.toLocaleLowerCase("fr");
     const existingUser = dedupedUsers.get(key);
 
     if (!existingUser || normalizedUser.id === state.presence.sessionId) {
@@ -907,6 +911,17 @@ function closePresenceConnections() {
   }
 
   state.presence.refreshNow = null;
+  state.multi.connected = false;
+  if (state.multi.sharedEvents && state.multi.sharedObserver) {
+    try {
+      state.multi.sharedEvents.unobserve(state.multi.sharedObserver);
+    } catch {
+      // ignore shared observer cleanup errors
+    }
+  }
+  state.multi.sharedEvents = null;
+  state.multi.sharedObserver = null;
+  state.multi.sharedBoundDoc = null;
 
   if (state.presence.peerPresenceMap) {
     try {
@@ -1076,150 +1091,121 @@ async function connectPeerPresence() {
   closePresenceConnections();
   state.presence.mode = "shared";
   state.presence.connected = false;
-  state.presence.users = [{ id: state.presence.sessionId, name: state.presence.nickname }];
-  state.presence.peerPresenceMap = new Map();
+  state.presence.users = [{
+    id: state.presence.sessionId,
+    clientId: state.presence.clientId,
+    name: state.presence.nickname,
+  }];
   updateOnlinePanel();
 
-  const sessions = state.presence.peerPresenceMap;
-
-  const syncUsersFromSessions = () => {
-    if (state.presence.connectToken !== connectToken) return;
-
-    const now = Date.now();
-    const nextUsers = [];
-
-    sessions.forEach((entry, sessionId) => {
-      if (!entry) return;
-
-      if (entry.status === "offline" || now - Number(entry.lastSeen || 0) > PEER_PRESENCE_TTL_MS) {
-        sessions.delete(sessionId);
-        return;
-      }
-
-      const normalizedUser = normalizePresenceUser({ id: sessionId, name: entry.name }, sessionId);
-      if (normalizedUser) {
-        nextUsers.push(normalizedUser);
-      }
-    });
-
-    if (!nextUsers.some((user) => user.id === state.presence.sessionId)) {
-      nextUsers.push({ id: state.presence.sessionId, name: state.presence.nickname });
-    }
-
-    state.presence.users = getSortedPresenceUsers(nextUsers);
-    rememberSeenNicknames([state.presence.nickname, ...state.presence.users.map((user) => user.name)]);
-    updateOnlinePanel();
-  };
-
-  const recordPresencePayload = (payload) => {
-    if (!payload || payload.site !== "sabsab" || payload.room !== PEER_PRESENCE_ROOM) return;
-
-    const sessionId = String(payload.sessionId || "").trim();
-    const userName = sanitizeNickname(payload.name);
-    const status = String(payload.status || "online").trim().toLowerCase();
-    const timestamp = Number(payload.ts || Date.now());
-
-    if (!sessionId || !userName) return;
-
-    sessions.set(sessionId, {
-      id: sessionId,
-      name: userName,
-      status,
-      lastSeen: Number.isFinite(timestamp) ? timestamp : Date.now(),
-    });
-
-    state.presence.connected = true;
-    syncUsersFromSessions();
-  };
-
-  const postPresenceHeartbeat = async (status = "online", useBeacon = false) => {
-    if (state.presence.connectToken !== connectToken) return;
-
-    const payload = JSON.stringify({
-      site: "sabsab",
-      room: PEER_PRESENCE_ROOM,
-      sessionId: state.presence.sessionId,
-      clientId: state.presence.clientId,
-      name: state.presence.nickname,
-      status,
-      ts: Date.now(),
-    });
-
-    if (useBeacon && navigator?.sendBeacon) {
-      try {
-        const blob = new Blob([payload], { type: "text/plain;charset=UTF-8" });
-        navigator.sendBeacon(PUBLIC_PRESENCE_POST_URL, blob);
-        recordPresencePayload(JSON.parse(payload));
-        return;
-      } catch {
-        // fallback to fetch below
-      }
-    }
-
-    const response = await fetch(PUBLIC_PRESENCE_POST_URL, {
-      method: "POST",
-      mode: "cors",
-      cache: "no-store",
-      keepalive: true,
-      headers: {
-        "Content-Type": "text/plain;charset=UTF-8",
-      },
-      body: payload,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Presence write failed (${response.status})`);
-    }
-
-    recordPresencePayload(JSON.parse(payload));
-  };
-
-  const handlePresenceEvent = (event) => {
-    if (state.presence.connectToken !== connectToken) return;
-
-    try {
-      const envelope = JSON.parse(event.data || "{}");
-      if (envelope.event !== "message" || !envelope.message) return;
-      const payload = JSON.parse(envelope.message);
-      recordPresencePayload(payload);
-    } catch {
-      // ignore malformed shared presence payloads
-    }
-  };
-
   try {
-    const stream = new EventSource(PUBLIC_PRESENCE_STREAM_URL);
-    state.presence.stream = stream;
+    const { Y, WebsocketProvider, WebrtcProvider } = await loadPeerPresenceLibs();
+    if (state.presence.connectToken !== connectToken) return;
 
-    stream.onopen = () => {
+    const doc = new Y.Doc();
+    const presenceMap = doc.getMap("presence");
+    const providers = [
+      new WebsocketProvider("wss://demos.yjs.dev", PEER_PRESENCE_ROOM, doc),
+      new WebrtcProvider(PEER_PRESENCE_ROOM, doc, {
+        signaling: ["wss://signaling.yjs.dev", "wss://signaling.y-webrtc.com"],
+      }),
+    ];
+
+    state.presence.peerDoc = doc;
+    state.presence.peerPresenceMap = presenceMap;
+    state.presence.peerProviders = providers;
+
+    const syncUsersFromPresenceMap = () => {
       if (state.presence.connectToken !== connectToken) return;
-      state.presence.connected = true;
+
+      const now = Date.now();
+      const nextUsers = [];
+
+      presenceMap.forEach((entry, sessionId) => {
+        if (!entry || typeof entry !== "object") return;
+
+        const timestamp = Number(entry.lastSeen || 0);
+        const status = String(entry.status || "online").trim().toLowerCase();
+        if (status === "offline" || (timestamp && now - timestamp > PEER_PRESENCE_TTL_MS)) {
+          if (sessionId !== state.presence.sessionId) {
+            try {
+              presenceMap.delete(sessionId);
+            } catch {
+              // ignore stale shared presence cleanup errors
+            }
+          }
+          return;
+        }
+
+        const normalizedUser = normalizePresenceUser({
+          id: String(entry.id || sessionId),
+          clientId: entry.clientId,
+          name: entry.name,
+        }, String(sessionId));
+
+        if (normalizedUser) {
+          nextUsers.push(normalizedUser);
+        }
+      });
+
+      if (!nextUsers.some((user) => user.id === state.presence.sessionId)) {
+        nextUsers.push({
+          id: state.presence.sessionId,
+          clientId: state.presence.clientId,
+          name: state.presence.nickname,
+        });
+      }
+
+      state.presence.users = getSortedPresenceUsers(nextUsers);
+      rememberSeenNicknames([state.presence.nickname, ...state.presence.users.map((user) => user.name)]);
+      state.presence.connected = providers.some((provider) => Boolean(provider?.connected || provider?.wsconnected || provider?.synced));
       updateOnlinePanel();
+      connectMultiRealtime();
     };
 
-    stream.onmessage = handlePresenceEvent;
-    stream.addEventListener?.("message", handlePresenceEvent);
-
-    stream.onerror = () => {
+    const publishLocalPresence = (status = "online") => {
       if (state.presence.connectToken !== connectToken) return;
-      state.presence.connected = false;
-      updateOnlinePanel();
+
+      presenceMap.set(state.presence.sessionId, {
+        id: state.presence.sessionId,
+        clientId: state.presence.clientId,
+        name: state.presence.nickname,
+        status,
+        lastSeen: Date.now(),
+      });
     };
+
+    presenceMap.observe(syncUsersFromPresenceMap);
+
+    providers.forEach((provider) => {
+      provider.on?.("status", () => {
+        if (state.presence.connectToken !== connectToken) return;
+        publishLocalPresence();
+        syncUsersFromPresenceMap();
+      });
+      provider.on?.("sync", () => {
+        if (state.presence.connectToken !== connectToken) return;
+        publishLocalPresence();
+        syncUsersFromPresenceMap();
+      });
+    });
 
     state.presence.refreshNow = () => {
-      void postPresenceHeartbeat().catch(() => {});
-      syncUsersFromSessions();
+      publishLocalPresence();
+      syncUsersFromPresenceMap();
     };
 
-    await postPresenceHeartbeat();
-    syncUsersFromSessions();
+    publishLocalPresence();
+    syncUsersFromPresenceMap();
+    connectMultiRealtime(true);
 
     state.presence.peerHeartbeatTimer = window.setInterval(() => {
-      void postPresenceHeartbeat().catch(() => {});
+      publishLocalPresence();
+      syncUsersFromPresenceMap();
     }, PEER_PRESENCE_HEARTBEAT_MS);
 
     state.presence.peerPollTimer = window.setInterval(() => {
-      syncUsersFromSessions();
+      syncUsersFromPresenceMap();
     }, PEER_PRESENCE_POLL_MS);
   } catch (error) {
     if (state.presence.connectToken !== connectToken) return;
@@ -1227,7 +1213,7 @@ async function connectPeerPresence() {
     state.presence.mode = "offline";
     state.presence.connected = false;
     state.presence.users = state.presence.nickname
-      ? [{ id: state.presence.sessionId, name: state.presence.nickname }]
+      ? [{ id: state.presence.sessionId, clientId: state.presence.clientId, name: state.presence.nickname }]
       : [];
     updateOnlinePanel();
     console.warn("Presence fallback unavailable:", error);
@@ -1383,19 +1369,15 @@ function setupPresence() {
   const sendOfflinePresenceSignal = () => {
     if (shouldUsePresenceServer() || !state.presence.nickname) return;
 
-    const payload = JSON.stringify({
-      site: "sabsab",
-      room: PEER_PRESENCE_ROOM,
-      sessionId: state.presence.sessionId,
-      clientId: state.presence.clientId,
-      name: state.presence.nickname,
-      status: "offline",
-      ts: Date.now(),
-    });
-
     try {
-      const blob = new Blob([payload], { type: "text/plain;charset=UTF-8" });
-      navigator.sendBeacon?.(PUBLIC_PRESENCE_POST_URL, blob);
+      state.presence.peerPresenceMap?.set?.(state.presence.sessionId, {
+        id: state.presence.sessionId,
+        clientId: state.presence.clientId,
+        name: state.presence.nickname,
+        status: "offline",
+        lastSeen: Date.now(),
+      });
+      state.presence.peerPresenceMap?.delete?.(state.presence.sessionId);
     } catch {
       // ignore unload presence errors
     }
@@ -2580,20 +2562,15 @@ async function sendMultiRealtimeEvent(payload, applyLocally = true) {
     rememberMultiEventId(eventPayload.id);
   }
 
-  const encodedMessage = encodeURIComponent(JSON.stringify(eventPayload));
-  const response = await fetch(PUBLIC_MULTI_POST_URL, {
-    method: "POST",
-    mode: "cors",
-    cache: "no-store",
-    keepalive: true,
-    headers: {
-      "Content-Type": "text/plain;charset=UTF-8",
-    },
-    body: encodedMessage,
-  });
+  const sharedEvents = state.multi.sharedEvents || state.presence.peerDoc?.getArray?.("multi-events");
+  if (!sharedEvents) {
+    connectPresenceStream();
+    throw new Error("Multi realtime room unavailable");
+  }
 
-  if (!response.ok) {
-    throw new Error(`Multi realtime failed (${response.status})`);
+  sharedEvents.push([eventPayload]);
+  if (sharedEvents.length > 600) {
+    sharedEvents.delete(0, sharedEvents.length - 600);
   }
 
   return eventPayload;
@@ -2711,90 +2688,59 @@ function applyMultiRealtimeEvent(payload) {
 }
 
 function connectMultiRealtime(forceReconnect = false) {
-  if (typeof EventSource === "undefined") {
-    renderMultiChatMessages();
-    return;
-  }
-
-  if (forceReconnect && state.multi.stream) {
-    try {
-      state.multi.stream.close();
-    } catch {
-      // ignore stream shutdown errors
-    }
-    state.multi.stream = null;
-  }
-
-  if (state.multi.reconnectTimer) {
-    window.clearTimeout(state.multi.reconnectTimer);
-    state.multi.reconnectTimer = 0;
-  }
-
-  if (state.multi.stream) {
-    renderMultiChatMessages();
-    return;
-  }
-
-  const connectToken = ++state.multi.connectToken;
-  const stream = new EventSource(PUBLIC_MULTI_STREAM_URL);
-  state.multi.stream = stream;
-  state.multi.connected = false;
-  renderMultiChatMessages();
-
-  const handleEvent = (event) => {
-    if (state.multi.connectToken !== connectToken) return;
-
-    try {
-      const envelope = JSON.parse(event.data || "{}");
-      if (envelope.event !== "message" || !envelope.message) return;
-
-      let payload = null;
-      try {
-        payload = JSON.parse(envelope.message);
-      } catch {
-        payload = JSON.parse(decodeURIComponent(envelope.message));
-      }
-
-      state.multi.connected = true;
-      applyMultiRealtimeEvent(payload);
-      renderMultiChatMessages();
-    } catch {
-      // ignore malformed realtime payloads
-    }
-  };
-
-  stream.onopen = () => {
-    if (state.multi.connectToken !== connectToken) return;
-    state.multi.connected = true;
-    renderMultiChatMessages();
-  };
-
-  stream.onmessage = handleEvent;
-  stream.addEventListener?.("message", handleEvent);
-
-  stream.onerror = () => {
-    if (state.multi.connectToken !== connectToken) return;
-
+  if (!state.presence.nickname) {
     state.multi.connected = false;
     renderMultiChatMessages();
+    return;
+  }
 
+  if (!state.presence.peerDoc) {
+    if (forceReconnect || !state.presence.connected) {
+      connectPresenceStream();
+    }
+    state.multi.connected = false;
+    renderMultiChatMessages();
+    return;
+  }
+
+  const sharedEvents = state.presence.peerDoc.getArray("multi-events");
+  if (!forceReconnect && state.multi.sharedEvents === sharedEvents && state.multi.sharedBoundDoc === state.presence.peerDoc) {
+    state.multi.connected = true;
+    renderMultiChatMessages();
+    return;
+  }
+
+  if (state.multi.sharedEvents && state.multi.sharedObserver) {
     try {
-      stream.close();
+      state.multi.sharedEvents.unobserve(state.multi.sharedObserver);
     } catch {
-      // ignore stream shutdown errors
+      // ignore shared observer cleanup errors
     }
+  }
 
-    if (state.multi.stream === stream) {
-      state.multi.stream = null;
-    }
+  state.multi.sharedEvents = sharedEvents;
+  state.multi.sharedBoundDoc = state.presence.peerDoc;
+  state.multi.connected = true;
 
-    if (!state.multi.reconnectTimer) {
-      state.multi.reconnectTimer = window.setTimeout(() => {
-        state.multi.reconnectTimer = 0;
-        connectMultiRealtime(true);
-      }, 1200);
+  sharedEvents.toArray().forEach((payload) => {
+    if (payload && typeof payload === "object") {
+      applyMultiRealtimeEvent(payload);
     }
+  });
+
+  state.multi.sharedObserver = (event) => {
+    event.changes.added.forEach((item) => {
+      item.content.getContent().forEach((payload) => {
+        if (payload && typeof payload === "object") {
+          applyMultiRealtimeEvent(payload);
+        }
+      });
+    });
+    renderMultiChatMessages();
   };
+
+  sharedEvents.observe(state.multi.sharedObserver);
+  renderMultiChatMessages();
 }
 
 function setupMultiCanvas() {
