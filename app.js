@@ -317,6 +317,11 @@ const el = {
   btnConfirmAddToPlaylist: document.getElementById("btn-confirm-add-to-playlist"),
   btnCancelAddToPlaylist: document.getElementById("btn-cancel-add-to-playlist"),
   btnMusicHome: document.getElementById("btn-music-home"),
+  btnToggleSkyPiano: document.getElementById("btn-toggle-sky-piano"),
+  skyPianoPanel: document.getElementById("sky-piano-panel"),
+  skyKeySelect: document.getElementById("sky-key-select"),
+  skyPianoGrid: document.getElementById("sky-piano-grid"),
+  skyPianoStatus: document.getElementById("sky-piano-status"),
   btnMultiHome: document.getElementById("btn-multi-home"),
   btnToggleMultiChat: document.getElementById("btn-open-multi-chat"),
   btnCloseMultiChat: document.getElementById("btn-close-multi-chat"),
@@ -385,6 +390,10 @@ const el = {
 let sfxAudio = null;
 let musicAudio = null;
 let multiToneContext = null;
+let skyToneContext = null;
+let skyPianoMasterGain = null;
+let skyPianoWetGain = null;
+let skyPianoConvolver = null;
 let musicProgressDragging = false;
 let lastGoodIndex = -1;
 let lastBadIndex = -1;
@@ -417,6 +426,37 @@ const MULTI_MUSIC_NOTES = [
   { id: "la", label: "La", key: "K", freq: 440.0 },
   { id: "si", label: "Si", key: "L", freq: 493.88 },
   { id: "do2", label: "Do+", key: ";", freq: 523.25 },
+];
+
+const SKY_PIANO_SCALE_OPTIONS = [
+  { value: "C", label: "Do majeur", semitone: 0, prefersSharps: true },
+  { value: "G", label: "Sol majeur", semitone: 7, prefersSharps: true },
+  { value: "D", label: "Ré majeur", semitone: 2, prefersSharps: true },
+  { value: "A", label: "La majeur", semitone: 9, prefersSharps: true },
+  { value: "E", label: "Mi majeur", semitone: 4, prefersSharps: true },
+  { value: "F", label: "Fa majeur", semitone: 5, prefersSharps: false },
+  { value: "Bb", label: "Si♭ majeur", semitone: 10, prefersSharps: false },
+];
+
+const SKY_NOTE_NAMES_SHARP = ["Do", "Do♯", "Ré", "Ré♯", "Mi", "Fa", "Fa♯", "Sol", "Sol♯", "La", "La♯", "Si"];
+const SKY_NOTE_NAMES_FLAT = ["Do", "Ré♭", "Ré", "Mi♭", "Mi", "Fa", "Sol♭", "Sol", "La♭", "La", "Si♭", "Si"];
+const SKY_MAJOR_INTERVALS = [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19, 21, 23, 24];
+const SKY_PIANO_LAYOUT = [
+  { noteIndex: 10, keyLabel: "Y", codes: ["KeyY"], aliases: ["y", "Y"] },
+  { noteIndex: 11, keyLabel: "U", codes: ["KeyU"], aliases: ["u", "U"] },
+  { noteIndex: 12, keyLabel: "I", codes: ["KeyI"], aliases: ["i", "I"] },
+  { noteIndex: 13, keyLabel: "O", codes: ["KeyO"], aliases: ["o", "O"] },
+  { noteIndex: 14, keyLabel: "P", codes: ["KeyP"], aliases: ["p", "P"] },
+  { noteIndex: 5, keyLabel: "H", codes: ["KeyH"], aliases: ["h", "H"] },
+  { noteIndex: 6, keyLabel: "J", codes: ["KeyJ"], aliases: ["j", "J"] },
+  { noteIndex: 7, keyLabel: "K", codes: ["KeyK"], aliases: ["k", "K"] },
+  { noteIndex: 8, keyLabel: "L", codes: ["KeyL"], aliases: ["l", "L"] },
+  { noteIndex: 9, keyLabel: "M", codes: ["KeyM"], aliases: ["m", "M"] },
+  { noteIndex: 0, keyLabel: "N", codes: ["KeyN"], aliases: ["n", "N"] },
+  { noteIndex: 1, keyLabel: ",", codes: ["Comma"], aliases: [","] },
+  { noteIndex: 2, keyLabel: ";", codes: ["Semicolon"], aliases: [";", ":"] },
+  { noteIndex: 3, keyLabel: ".", codes: ["Period"], aliases: ["."] },
+  { noteIndex: 4, keyLabel: "/", codes: ["Slash"], aliases: ["/", "!"] },
 ];
 
 function readSavedTheme() {
@@ -672,6 +712,8 @@ const state = {
     currentTrack: DEFAULT_TRACK,
     activeQueue: "library",
     playerMode: PLAYER_MODES.repeatAll,
+    skyKey: "C",
+    skyPianoOpen: false,
     playlists: readSavedPlaylists(),
   },
 };
@@ -1483,6 +1525,13 @@ function toggleMuteAll(forceValue) {
     state.audio.wasPlayingBeforeMute = false;
   }
 
+  if (skyPianoMasterGain && skyToneContext) {
+    const nextGain = state.audio.mutedAll || !state.audio.musicEnabled
+      ? 0.0001
+      : Math.max(0.04, state.audio.musicVolume * 0.3);
+    skyPianoMasterGain.gain.setValueAtTime(nextGain, skyToneContext.currentTime);
+  }
+
   updateMuteButton();
   syncMusicButton();
 }
@@ -2190,6 +2239,13 @@ function setupSoundPanel() {
       musicAudio.volume = state.audio.musicVolume;
     }
 
+    if (skyPianoMasterGain && skyToneContext) {
+      const nextGain = state.audio.mutedAll || !state.audio.musicEnabled
+        ? 0.0001
+        : Math.max(0.04, state.audio.musicVolume * 0.3);
+      skyPianoMasterGain.gain.setValueAtTime(nextGain, skyToneContext.currentTime);
+    }
+
     if (!state.audio.musicEnabled) {
       state.audio.wasPlayingBeforeMute = Boolean(musicAudio && !musicAudio.paused);
       pauseMusic();
@@ -2216,8 +2272,205 @@ function setupSoundPanel() {
   updateMuteButton();
 }
 
+function getSkyPianoScale() {
+  return SKY_PIANO_SCALE_OPTIONS.find((entry) => entry.value === state.audio.skyKey) || SKY_PIANO_SCALE_OPTIONS[0];
+}
+
+function midiToFrequency(midi) {
+  return 440 * 2 ** ((midi - 69) / 12);
+}
+
+function getSkyPianoNoteData(noteIndex) {
+  const scale = getSkyPianoScale();
+  const rootMidi = 48 + scale.semitone;
+  const midi = rootMidi + SKY_MAJOR_INTERVALS[noteIndex];
+  const noteNames = scale.prefersSharps ? SKY_NOTE_NAMES_SHARP : SKY_NOTE_NAMES_FLAT;
+  const noteName = noteNames[((midi % 12) + 12) % 12];
+  const octave = Math.floor(midi / 12) - 1;
+
+  return {
+    noteName,
+    label: `${noteName}${octave}`,
+    freq: midiToFrequency(midi),
+  };
+}
+
+function buildSkyImpulseBuffer(audioContext) {
+  const duration = 1.8;
+  const decay = 2.2;
+  const length = Math.floor(audioContext.sampleRate * duration);
+  const impulse = audioContext.createBuffer(2, length, audioContext.sampleRate);
+
+  for (let channel = 0; channel < impulse.numberOfChannels; channel += 1) {
+    const channelData = impulse.getChannelData(channel);
+    for (let i = 0; i < length; i += 1) {
+      const progress = i / length;
+      channelData[i] = (Math.random() * 2 - 1) * ((1 - progress) ** decay);
+    }
+  }
+
+  return impulse;
+}
+
+function ensureSkyToneContext(tryResume = false) {
+  if (!skyToneContext) {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (AudioCtx) {
+      skyToneContext = new AudioCtx();
+      skyPianoMasterGain = skyToneContext.createGain();
+      skyPianoWetGain = skyToneContext.createGain();
+      skyPianoConvolver = skyToneContext.createConvolver();
+      skyPianoConvolver.buffer = buildSkyImpulseBuffer(skyToneContext);
+
+      const dryGain = skyToneContext.createGain();
+      dryGain.gain.value = 0.82;
+      skyPianoWetGain.gain.value = 0.35;
+      skyPianoMasterGain.gain.value = Math.max(0.04, state.audio.musicVolume * 0.3);
+
+      skyPianoMasterGain.connect(dryGain);
+      skyPianoMasterGain.connect(skyPianoConvolver);
+      skyPianoConvolver.connect(skyPianoWetGain);
+      dryGain.connect(skyToneContext.destination);
+      skyPianoWetGain.connect(skyToneContext.destination);
+    }
+  }
+
+  if (tryResume && skyToneContext?.state === "suspended") {
+    skyToneContext.resume().catch(() => {});
+  }
+
+  if (skyPianoMasterGain && skyToneContext) {
+    const nextGain = state.audio.mutedAll || !state.audio.musicEnabled
+      ? 0.0001
+      : Math.max(0.04, state.audio.musicVolume * 0.3);
+    skyPianoMasterGain.gain.setValueAtTime(nextGain, skyToneContext.currentTime);
+  }
+
+  return skyToneContext;
+}
+
+function setSkyPianoStatus(message) {
+  if (!el.skyPianoStatus) return;
+  el.skyPianoStatus.textContent = message;
+}
+
+function flashSkyPianoButton(button) {
+  if (!button) return;
+  button.classList.add("is-playing");
+  clearTimeout(button._skyFlashTimer);
+  button._skyFlashTimer = window.setTimeout(() => {
+    button.classList.remove("is-playing");
+  }, 220);
+}
+
+function renderSkyPiano() {
+  if (!el.skyPianoGrid) return;
+
+  if (el.skyKeySelect) {
+    el.skyKeySelect.value = state.audio.skyKey;
+  }
+
+  el.skyPianoGrid.innerHTML = "";
+
+  SKY_PIANO_LAYOUT.forEach((binding) => {
+    const noteData = getSkyPianoNoteData(binding.noteIndex);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "sky-piano-key";
+    button.dataset.noteIndex = String(binding.noteIndex);
+    button.dataset.noteLabel = noteData.label;
+    button.dataset.noteFreq = String(noteData.freq);
+    button.dataset.keyLabel = binding.keyLabel;
+    button.setAttribute("aria-label", `${noteData.label} — clavier ${binding.keyLabel}`);
+    button.innerHTML = `
+      <span class="sky-piano-keybind">${binding.keyLabel}</span>
+      <strong class="sky-piano-note">${noteData.noteName}</strong>
+      <small class="sky-piano-octave">${noteData.label}</small>
+    `;
+    el.skyPianoGrid.appendChild(button);
+  });
+
+  setSkyPianoStatus(`Tonalité active : ${getSkyPianoScale().label}.`);
+}
+
+function toggleSkyPiano(forceOpen) {
+  if (!el.skyPianoPanel || !el.btnToggleSkyPiano) return;
+
+  const shouldOpen = typeof forceOpen === "boolean" ? forceOpen : el.skyPianoPanel.hidden;
+  state.audio.skyPianoOpen = shouldOpen;
+  el.skyPianoPanel.hidden = !shouldOpen;
+  el.btnToggleSkyPiano.setAttribute("aria-expanded", String(shouldOpen));
+  el.btnToggleSkyPiano.textContent = shouldOpen ? "🎹 Fermer le piano" : "🎹 Ouvrir le piano";
+
+  if (shouldOpen) {
+    renderSkyPiano();
+  }
+}
+
+function triggerSkyPianoNote(button, source = "toucher") {
+  if (!button) return;
+
+  flashSkyPianoButton(button);
+  const noteLabel = button.dataset.noteLabel || "Note";
+  setSkyPianoStatus(`${noteLabel} · joué au ${source}.`);
+
+  const toneContext = ensureSkyToneContext(true);
+  if (!toneContext || state.audio.mutedAll || !state.audio.musicEnabled || state.audio.musicVolume <= 0) {
+    return;
+  }
+
+  const freq = Number(button.dataset.noteFreq || 0);
+  if (!Number.isFinite(freq) || freq <= 0) return;
+
+  const now = toneContext.currentTime;
+  const body = toneContext.createGain();
+  const filter = toneContext.createBiquadFilter();
+  const oscillator = toneContext.createOscillator();
+  const shimmer = toneContext.createOscillator();
+
+  oscillator.type = "triangle";
+  shimmer.type = "sine";
+  oscillator.frequency.setValueAtTime(freq, now);
+  shimmer.frequency.setValueAtTime(freq * 2, now);
+  filter.type = "lowpass";
+  filter.frequency.setValueAtTime(2800, now);
+  filter.Q.value = 2.5;
+
+  body.gain.setValueAtTime(0.0001, now);
+  body.gain.exponentialRampToValueAtTime(Math.max(0.05, state.audio.musicVolume * 0.16), now + 0.03);
+  body.gain.exponentialRampToValueAtTime(Math.max(0.025, state.audio.musicVolume * 0.08), now + 0.18);
+  body.gain.exponentialRampToValueAtTime(0.0001, now + 1.35);
+
+  oscillator.connect(filter);
+  shimmer.connect(filter);
+  filter.connect(body);
+  body.connect(skyPianoMasterGain);
+
+  oscillator.start(now);
+  shimmer.start(now);
+  oscillator.stop(now + 1.3);
+  shimmer.stop(now + 1.2);
+}
+
+function getSkyKeyboardBinding(event) {
+  if (!event) return null;
+
+  return SKY_PIANO_LAYOUT.find((binding) => (
+    binding.codes.includes(event.code)
+    || binding.aliases.includes(event.key)
+  )) || null;
+}
+
+function isTypingField(target) {
+  if (!target) return false;
+  const tagName = typeof target.tagName === "string" ? target.tagName.toUpperCase() : "";
+  return target.isContentEditable || tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT";
+}
+
 function setupMusicScreen() {
   refreshMusicUI();
+  renderSkyPiano();
+  toggleSkyPiano(state.audio.skyPianoOpen);
   updatePlaylistStatus("Choisis une musique ou crée une playlist pour t'organiser.");
 
   el.btnStartMusic.addEventListener("click", (event) => {
@@ -2226,6 +2479,31 @@ function setupMusicScreen() {
       setActiveScreen("music");
       refreshMusicUI();
     });
+  });
+
+  el.btnToggleSkyPiano?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleSkyPiano();
+  });
+
+  el.skyKeySelect?.addEventListener("change", (event) => {
+    state.audio.skyKey = event.target.value || "C";
+    renderSkyPiano();
+  });
+
+  el.skyPianoGrid?.addEventListener("pointerdown", (event) => {
+    const button = event.target.closest(".sky-piano-key");
+    if (!button) return;
+    event.preventDefault();
+    triggerSkyPianoNote(button, "toucher");
+  });
+
+  el.skyPianoGrid?.addEventListener("click", (event) => {
+    const button = event.target.closest(".sky-piano-key");
+    if (!button || event.detail > 0) return;
+    event.preventDefault();
+    triggerSkyPianoNote(button, "clavier");
   });
 
   ["pointerdown", "click", "touchstart"].forEach((eventName) => {
@@ -2345,6 +2623,24 @@ function setupMusicScreen() {
   });
 
   document.addEventListener("keydown", (event) => {
+    if (el.screenMusic?.classList.contains("active") && !isTypingField(event.target) && !event.repeat) {
+      const binding = getSkyKeyboardBinding(event);
+      if (binding) {
+        if (el.skyPianoPanel?.hidden) {
+          toggleSkyPiano(true);
+        }
+
+        const button = el.skyPianoGrid?.querySelector(`[data-note-index="${binding.noteIndex}"][data-key-label="${binding.keyLabel}"]`)
+          || el.skyPianoGrid?.querySelector(`[data-note-index="${binding.noteIndex}"]`);
+
+        if (button) {
+          event.preventDefault();
+          triggerSkyPianoNote(button, `clavier ${binding.keyLabel}`);
+          return;
+        }
+      }
+    }
+
     if (event.key !== "Escape") return;
     closeCreatePlaylistModal();
     closePlaylistTrackPicker();
