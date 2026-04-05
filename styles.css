@@ -910,6 +910,7 @@ body[data-theme="dark"] .playlist-card.active {
   height: 46px;
   display: grid;
   place-items: center;
+  border: none;
   border-radius: 50%;
   background: conic-gradient(#ff4f7d, #ffb347, #f7ff5c, #4bff9d, #54d7ff, #5a78ff, #b46bff, #ff4f7d);
   box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.78);
@@ -927,11 +928,10 @@ body[data-theme="dark"] .playlist-card.active {
 
 .multi-color-input {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  width: 1px;
+  height: 1px;
   opacity: 0;
-  cursor: pointer;
+  pointer-events: none;
 }
 
 .multi-color-hex {
@@ -946,6 +946,62 @@ body[data-theme="dark"] .playlist-card.active {
   font-family: "Segoe UI", sans-serif;
   font-weight: 800;
   text-transform: uppercase;
+}
+
+.multi-color-modal-card {
+  width: min(420px, 100%);
+  display: grid;
+  gap: 14px;
+}
+
+.multi-color-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  text-align: left;
+}
+
+.multi-color-modal-header h3 {
+  margin: 2px 0 0;
+}
+
+.multi-color-wheel-stage {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+}
+
+#multi-color-wheel-canvas {
+  width: min(78vw, 320px);
+  height: auto;
+  aspect-ratio: 1;
+  display: block;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(16, 16, 16, 0.75), rgba(16, 16, 16, 0) 16%), #ffffff;
+  box-shadow: 0 12px 28px rgba(18, 10, 30, 0.22);
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.multi-color-preview-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.multi-color-preview {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  border: 3px solid var(--line);
+  background: #ff4f7d;
+  flex: 0 0 auto;
+}
+
+.multi-color-modal-hex {
+  flex: 1;
 }
 
 .multi-range {
@@ -1887,6 +1943,21 @@ body.chaos-mode .apology-btn {
   .sky-piano-header {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .multi-color-picker {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .multi-color-hex,
+  .multi-color-modal-hex {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .multi-range {
+    width: 100%;
   }
 
   .screen {

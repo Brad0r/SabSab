@@ -334,8 +334,14 @@ const el = {
   multiChatInput: document.getElementById("multi-chat-input"),
   multiCanvas: document.getElementById("multi-canvas"),
   multiCanvasColor: document.getElementById("multi-canvas-color"),
+  btnOpenMultiColorModal: document.getElementById("btn-open-multi-color-modal"),
   multiCanvasColorHex: document.getElementById("multi-canvas-color-hex"),
   multiColorWheelCore: document.getElementById("multi-color-wheel-core"),
+  multiColorModal: document.getElementById("multi-color-modal"),
+  btnCloseMultiColorModal: document.getElementById("btn-close-multi-color-modal"),
+  multiColorWheelCanvas: document.getElementById("multi-color-wheel-canvas"),
+  multiColorModalHex: document.getElementById("multi-color-modal-hex"),
+  multiColorPreview: document.getElementById("multi-color-preview"),
   multiCanvasSize: document.getElementById("multi-canvas-size"),
   btnToggleMultiEraser: document.getElementById("btn-toggle-multi-eraser"),
   btnClearMultiCanvas: document.getElementById("btn-clear-multi-canvas"),
@@ -3607,26 +3613,141 @@ function setupMultiCanvas() {
       : String(fallback || "#FF4F7D").toUpperCase();
   };
 
-  const updateBrushSettings = (forceSync = false) => {
-    const safeColor = normalizeColorHex(
-      el.multiCanvasColorHex?.value || el.multiCanvasColor?.value || state.multi.brushColor,
-      state.multi.brushColor,
-    );
+  const hsvToRgb = (h, s, v) => {
+    const hue = ((Number(h) % 360) + 360) % 360;
+    const chroma = v * s;
+    const segment = hue / 60;
+    const x = chroma * (1 - Math.abs((segment % 2) - 1));
+    let red = 0;
+    let green = 0;
+    let blue = 0;
 
+    if (segment >= 0 && segment < 1) {
+      red = chroma;
+      green = x;
+    } else if (segment < 2) {
+      red = x;
+      green = chroma;
+    } else if (segment < 3) {
+      green = chroma;
+      blue = x;
+    } else if (segment < 4) {
+      green = x;
+      blue = chroma;
+    } else if (segment < 5) {
+      red = x;
+      blue = chroma;
+    } else {
+      red = chroma;
+      blue = x;
+    }
+
+    const match = v - chroma;
+    return [
+      Math.round((red + match) * 255),
+      Math.round((green + match) * 255),
+      Math.round((blue + match) * 255),
+    ];
+  };
+
+  const rgbToHex = (red, green, blue) => `#${[red, green, blue]
+    .map((value) => Math.max(0, Math.min(255, Number(value || 0))).toString(16).padStart(2, "0"))
+    .join("")}`.toUpperCase();
+
+  const drawMultiColorWheel = () => {
+    if (!el.multiColorWheelCanvas) return;
+
+    const canvas = el.multiColorWheelCanvas;
+    const ratio = Math.max(window.devicePixelRatio || 1, 1);
+    const logicalSize = Math.max(240, Math.min(window.innerWidth - 44, 320));
+    const pixelSize = Math.floor(logicalSize * ratio);
+
+    canvas.style.width = `${logicalSize}px`;
+    canvas.style.height = `${logicalSize}px`;
+
+    if (canvas.width !== pixelSize || canvas.height !== pixelSize) {
+      canvas.width = pixelSize;
+      canvas.height = pixelSize;
+    }
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const image = ctx.createImageData(canvas.width, canvas.height);
+    const { data } = image;
+    const center = canvas.width / 2;
+    const radius = center - (2 * ratio);
+
+    for (let y = 0; y < canvas.height; y += 1) {
+      for (let x = 0; x < canvas.width; x += 1) {
+        const dx = x - center;
+        const dy = y - center;
+        const distance = Math.sqrt((dx * dx) + (dy * dy));
+        const offset = (y * canvas.width + x) * 4;
+
+        if (distance > radius) {
+          data[offset + 3] = 0;
+          continue;
+        }
+
+        const hue = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+        const value = Math.min(1, Math.max(0, distance / radius));
+        const [red, green, blue] = hsvToRgb(hue, 1, value);
+
+        data[offset] = red;
+        data[offset + 1] = green;
+        data[offset + 2] = blue;
+        data[offset + 3] = 255;
+      }
+    }
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.putImageData(image, 0, 0);
+    ctx.save();
+    ctx.strokeStyle = "rgba(10, 14, 18, 0.72)";
+    ctx.lineWidth = Math.max(2, ratio * 2);
+    ctx.beginPath();
+    ctx.arc(center, center, radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  };
+
+  const setSelectedMultiColor = (value, { forceSync = false, switchToBrush = false } = {}) => {
+    const safeColor = normalizeColorHex(value, state.multi.brushColor);
     state.multi.brushColor = safeColor;
-    state.multi.brushSize = Number(el.multiCanvasSize?.value || 4);
+    if (switchToBrush) {
+      state.multi.tool = "brush";
+    }
 
     if (el.multiCanvasColor && (forceSync || el.multiCanvasColor.value.toUpperCase() !== safeColor)) {
       el.multiCanvasColor.value = safeColor;
     }
 
     if (el.multiCanvasColorHex && (forceSync || document.activeElement !== el.multiCanvasColorHex)) {
-      el.multiCanvasColorHex.value = safeColor.toUpperCase();
+      el.multiCanvasColorHex.value = safeColor;
+    }
+
+    if (el.multiColorModalHex && (forceSync || document.activeElement !== el.multiColorModalHex)) {
+      el.multiColorModalHex.value = safeColor;
     }
 
     if (el.multiColorWheelCore) {
       el.multiColorWheelCore.style.background = safeColor;
     }
+
+    if (el.multiColorPreview) {
+      el.multiColorPreview.style.background = safeColor;
+    }
+  };
+
+  const updateBrushSettings = (forceSync = false) => {
+    const safeColor = normalizeColorHex(
+      el.multiColorModalHex?.value || el.multiCanvasColorHex?.value || el.multiCanvasColor?.value || state.multi.brushColor,
+      state.multi.brushColor,
+    );
+
+    state.multi.brushSize = Number(el.multiCanvasSize?.value || 4);
+    setSelectedMultiColor(safeColor, { forceSync });
 
     if (el.btnToggleMultiEraser) {
       const eraserActive = state.multi.tool === "eraser";
@@ -3636,6 +3757,42 @@ function setupMultiCanvas() {
     }
 
     el.multiCanvas.dataset.tool = state.multi.tool;
+  };
+
+  const closeColorModal = () => {
+    if (!el.multiColorModal) return;
+    el.multiColorModal.hidden = true;
+  };
+
+  const openColorModal = () => {
+    if (!el.multiColorModal) return;
+    updateBrushSettings(true);
+    drawMultiColorWheel();
+    el.multiColorModal.hidden = false;
+  };
+
+  const pickColorFromWheelEvent = (event) => {
+    const canvas = el.multiColorWheelCanvas;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    const dx = x - (rect.width / 2);
+    const dy = y - (rect.height / 2);
+    const radius = Math.min(rect.width, rect.height) / 2;
+    const distance = Math.sqrt((dx * dx) + (dy * dy));
+
+    if (distance > radius) return;
+
+    const hue = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+    const value = Math.min(1, Math.max(0, distance / radius));
+    const [red, green, blue] = hsvToRgb(hue, 1, value);
+    const safeColor = rgbToHex(red, green, blue);
+    setSelectedMultiColor(safeColor, { forceSync: true, switchToBrush: true });
+    updateBrushSettings(true);
   };
 
   const finishStroke = () => {
@@ -3725,10 +3882,57 @@ function setupMultiCanvas() {
   el.multiCanvas.addEventListener("pointerleave", finishStroke);
   el.multiCanvas.addEventListener("pointercancel", finishStroke);
 
-  el.multiCanvasColor?.addEventListener("input", () => updateBrushSettings(true));
-  el.multiCanvasColorHex?.addEventListener("input", () => updateBrushSettings(false));
+  el.btnOpenMultiColorModal?.addEventListener("click", (event) => {
+    event.preventDefault();
+    openColorModal();
+  });
+
+  el.btnCloseMultiColorModal?.addEventListener("click", (event) => {
+    event.preventDefault();
+    closeColorModal();
+  });
+
+  el.multiColorModal?.addEventListener("click", (event) => {
+    if (event.target === el.multiColorModal) {
+      closeColorModal();
+    }
+  });
+
+  el.multiColorWheelCanvas?.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    pickColorFromWheelEvent(event);
+    try {
+      el.multiColorWheelCanvas.setPointerCapture?.(event.pointerId);
+    } catch {
+      // ignore pointer capture errors
+    }
+  });
+
+  el.multiColorWheelCanvas?.addEventListener("pointermove", (event) => {
+    if (event.buttons === 0) return;
+    event.preventDefault();
+    pickColorFromWheelEvent(event);
+  });
+
+  el.multiCanvasColor?.addEventListener("input", () => {
+    setSelectedMultiColor(el.multiCanvasColor.value, { forceSync: true, switchToBrush: true });
+    updateBrushSettings(true);
+  });
+
+  el.multiCanvasColorHex?.addEventListener("input", () => {
+    setSelectedMultiColor(el.multiCanvasColorHex.value, { forceSync: false });
+    updateBrushSettings(false);
+  });
   el.multiCanvasColorHex?.addEventListener("change", () => updateBrushSettings(true));
   el.multiCanvasColorHex?.addEventListener("blur", () => updateBrushSettings(true));
+
+  el.multiColorModalHex?.addEventListener("input", () => {
+    setSelectedMultiColor(el.multiColorModalHex.value, { forceSync: false, switchToBrush: true });
+    updateBrushSettings(false);
+  });
+  el.multiColorModalHex?.addEventListener("change", () => updateBrushSettings(true));
+  el.multiColorModalHex?.addEventListener("blur", () => updateBrushSettings(true));
+
   el.multiCanvasSize?.addEventListener("input", updateBrushSettings);
 
   el.btnToggleMultiEraser?.addEventListener("click", (event) => {
@@ -3743,6 +3947,9 @@ function setupMultiCanvas() {
   });
 
   window.addEventListener("resize", () => {
+    if (!el.multiColorModal?.hidden) {
+      drawMultiColorWheel();
+    }
     if (el.screenMulti?.classList.contains("active")) {
       syncMultiCanvasSize();
       redrawMultiCanvasHistory();

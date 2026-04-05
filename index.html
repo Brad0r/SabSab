@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Noto+Sans+JP:wght@400;700;900&family=Zen+Kurenaido&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260405ab" />
+  <link rel="stylesheet" href="styles.css?v=20260405ac" />
 </head>
 <body>
   <div id="screen-home" class="screen active">
@@ -248,10 +248,10 @@
           </div>
           <div class="multi-toolbar">
             <div class="multi-color-picker" aria-label="Couleur du pinceau">
-              <label class="multi-color-wheel" for="multi-canvas-color" title="Choisir une couleur précise">
-                <input id="multi-canvas-color" class="multi-color-input" type="color" value="#ff4f7d" aria-label="Couleur du pinceau" />
+              <button id="btn-open-multi-color-modal" class="multi-color-wheel" type="button" aria-label="Choisir une couleur précise" title="Choisir une couleur précise">
+                <input id="multi-canvas-color" class="multi-color-input" type="color" value="#ff4f7d" aria-label="Couleur du pinceau" tabindex="-1" />
                 <span id="multi-color-wheel-core" class="multi-color-wheel-core"></span>
-              </label>
+              </button>
               <input id="multi-canvas-color-hex" class="multi-color-hex" type="text" value="#FF4F7D" maxlength="7" inputmode="text" spellcheck="false" aria-label="Code couleur exact" />
             </div>
             <input id="multi-canvas-size" class="vol-slider multi-range" type="range" min="2" max="18" step="1" value="4" aria-label="Taille du pinceau ou de la gomme" />
@@ -306,6 +306,25 @@
         <button class="big-cta" type="submit">Envoyer</button>
       </form>
     </aside>
+  </div>
+
+  <div id="multi-color-modal" class="dialog" hidden>
+    <div class="dialog-card manga-panel multi-color-modal-card">
+      <div class="multi-color-modal-header">
+        <div>
+          <p class="kicker">Palette précise</p>
+          <h3>Choisis une couleur</h3>
+        </div>
+        <button id="btn-close-multi-color-modal" class="secondary-cta" type="button">Fermer</button>
+      </div>
+      <div class="multi-color-wheel-stage">
+        <canvas id="multi-color-wheel-canvas" width="320" height="320" aria-label="Roue des couleurs"></canvas>
+        <div class="multi-color-preview-row">
+          <span id="multi-color-preview" class="multi-color-preview" aria-hidden="true"></span>
+          <input id="multi-color-modal-hex" class="multi-color-hex multi-color-modal-hex" type="text" value="#FF4F7D" maxlength="7" inputmode="text" spellcheck="false" aria-label="Code couleur sélectionné" />
+        </div>
+      </div>
+    </div>
   </div>
 
   <div id="playlist-modal" class="dialog" hidden>
@@ -424,6 +443,6 @@
       return "";
     })();
   </script>
-  <script src="app.js?v=20260405ab"></script>
+  <script src="app.js?v=20260405ac"></script>
 </body>
 </html>
