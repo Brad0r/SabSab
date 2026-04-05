@@ -114,7 +114,6 @@ const STORAGE_KEYS = {
   theme: "sabsab.theme",
   nickname: "sabsab.nickname",
   clientId: "sabsab.clientId",
-  presenceSessionId: "sabsab.presenceSessionId",
   seenNicknames: "sabsab.presenceSeenNicknames",
 };
 
@@ -464,19 +463,9 @@ function readOrCreateClientId() {
 }
 
 function readOrCreatePresenceSessionId() {
-  try {
-    const existing = sessionStorage.getItem(STORAGE_KEYS.presenceSessionId);
-    if (existing) return existing;
-
-    const generatedId = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-      ? crypto.randomUUID()
-      : `session-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-
-    sessionStorage.setItem(STORAGE_KEYS.presenceSessionId, generatedId);
-    return generatedId;
-  } catch {
-    return `session-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-  }
+  return typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `session-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function saveThemePreference() {
@@ -619,7 +608,7 @@ function readSavedPlaylists() {
       if (typeof name !== "string" || !Array.isArray(tracks)) return;
       const validTracks = tracks
         .map(normalizeMusicTrackPath)
-        .filter((track) => MEDIA.site.music.includes(track));
+        .filter((track) => typeof track === "string" && track.trim().length > 0);
       cleaned[name] = [...new Set(validTracks)];
     });
     return cleaned;
