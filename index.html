@@ -235,7 +235,7 @@
       <div class="multi-hero manga-panel">
         <p class="kicker">Salon coopératif</p>
         <h2>Multi</h2>
-        <p>Dessin partagé, carillon céleste original et chat instantané entre les personnes connectées.</p>
+        <p>Dessin partagé, instruments réalistes et chat instantané entre les personnes connectées.</p>
       </div>
     </header>
 
@@ -275,16 +275,27 @@
           <button id="btn-toggle-sky-piano" class="secondary-cta multi-music-launch" type="button" aria-expanded="false" aria-controls="sky-piano-panel">Musique</button>
         </div>
 
-        <p id="multi-music-hint" class="multi-note">Ouvre le piano puis joue ensemble dans le salon.</p>
-
         <section id="sky-piano-panel" class="multi-sky-panel" hidden>
           <div class="sky-piano-mobile-bar">
             <strong>Mode musique</strong>
             <button id="btn-close-sky-piano" class="secondary-cta" type="button">Fermer</button>
           </div>
-          <p id="sky-piano-status" class="sky-piano-status">Piano prêt : Do3 → Do5 sur Y U I O P · H J K L M · N , ; : !</p>
-          <div id="sky-piano-grid" class="multi-music-grid sky-piano-grid" aria-label="Piano céleste interactif"></div>
-          <p class="sky-piano-help">Clavier : Y U I O P · H J K L M · N , ; : !</p>
+          <div id="multi-instrument-picker" class="multi-instrument-picker">
+            <button id="btn-toggle-multi-instrument-menu" class="multi-instrument-trigger" type="button" aria-expanded="false" aria-controls="multi-instrument-menu" aria-haspopup="listbox">
+              <span class="multi-instrument-trigger-text">
+                <small class="multi-instrument-trigger-kicker">Instrument</small>
+                <strong id="multi-instrument-trigger-label">🎹 Piano</strong>
+              </span>
+              <span class="multi-instrument-trigger-caret" aria-hidden="true">▾</span>
+            </button>
+            <div id="multi-instrument-menu" class="multi-instrument-menu" role="listbox" aria-label="Choisir un instrument" hidden>
+              <button class="multi-instrument-btn active" type="button" data-multi-instrument="piano" aria-pressed="true">🎹 Piano</button>
+              <button class="multi-instrument-btn" type="button" data-multi-instrument="violin" aria-pressed="false">🎻 Violon</button>
+              <button class="multi-instrument-btn" type="button" data-multi-instrument="panflute" aria-pressed="false">🪈 Flûte de pan</button>
+              <button class="multi-instrument-btn" type="button" data-multi-instrument="ocarina" aria-pressed="false">🎶 Ocarina</button>
+            </div>
+          </div>
+          <div id="sky-piano-grid" class="multi-music-grid sky-piano-grid" aria-label="Instruments interactifs du salon"></div>
         </section>
       </section>
     </main>
