@@ -149,6 +149,16 @@ function sanitizeMultiPayload(payload) {
     eventPayload.noteId = payload.noteId.trim().slice(0, 40);
   }
 
+  if (typeof payload.instrument === 'string') {
+    eventPayload.instrument = payload.instrument.trim().slice(0, 40);
+  } else if (typeof payload.instrumentId === 'string') {
+    eventPayload.instrument = payload.instrumentId.trim().slice(0, 40);
+  }
+
+  if (typeof payload.voiceId === 'string') {
+    eventPayload.voiceId = payload.voiceId.trim().slice(0, 120);
+  }
+
   if (typeof payload.text === 'string') {
     eventPayload.text = payload.text.trim().slice(0, 240);
   }

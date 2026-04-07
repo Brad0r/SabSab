@@ -5196,9 +5196,10 @@ function applyMultiRealtimeEvent(payload) {
       return;
     }
 
+    const incomingInstrumentId = String(payload.instrument || payload.instrumentId || "").trim();
     startHeldMultiNote(payload.noteId, {
       shouldBroadcast: false,
-      instrumentId: payload.instrument || "violin",
+      instrumentId: incomingInstrumentId || "violin",
       voiceId: payload.voiceId || payload.id,
       isRemote: true,
     });
@@ -5216,7 +5217,8 @@ function applyMultiRealtimeEvent(payload) {
       return;
     }
 
-    playMultiMusicNote(payload.noteId, false, payload.instrument || "ocarina");
+    const incomingInstrumentId = String(payload.instrument || payload.instrumentId || "").trim();
+    playMultiMusicNote(payload.noteId, false, incomingInstrumentId || "ocarina");
   }
 }
 
