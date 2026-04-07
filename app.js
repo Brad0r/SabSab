@@ -3333,6 +3333,10 @@ function startHeldMultiNote(noteId, options = {}) {
   }
 
   const actualVoiceId = voiceId || createRealtimeId("music-hold");
+  if (state.multi.activeMusicVoices[actualVoiceId]) {
+    stopHeldMultiNote(actualVoiceId, false);
+  }
+
   const toneContext = ensureSkyToneContext(shouldBroadcast || isMultiScreenActive());
   const canPlayHere = Boolean(
     isMultiScreenActive()
@@ -3346,11 +3350,18 @@ function startHeldMultiNote(noteId, options = {}) {
   if (canPlayHere) {
     const voice = createMultiInstrumentVoice(toneContext, note, instrument.id, { sustain: true });
     if (voice) {
+      const safetyTimer = !shouldBroadcast
+        ? window.setTimeout(() => {
+            stopHeldMultiNote(actualVoiceId, false);
+          }, 12000)
+        : 0;
+
       state.multi.activeMusicVoices[actualVoiceId] = {
         ...voice,
         voiceId: actualVoiceId,
         noteId,
         instrumentId: instrument.id,
+        safetyTimer,
       };
     }
   }
@@ -3389,6 +3400,14 @@ function stopHeldMultiNote(voiceId, shouldBroadcast = false) {
   const activeVoice = state.multi.activeMusicVoices[safeVoiceId];
   const noteId = activeVoice?.noteId || "";
 
+  if (activeVoice?.safetyTimer) {
+    try {
+      window.clearTimeout(activeVoice.safetyTimer);
+    } catch {
+      // ignore timer cleanup errors
+    }
+  }
+
   try {
     const releaseTime = activeVoice?.instrumentId === "violin"
       ? 0.28
@@ -3419,10 +3438,13 @@ function stopHeldMultiNote(voiceId, shouldBroadcast = false) {
 }
 
 function releaseAllLocalMultiNotes(shouldBroadcast = false) {
-  const heldVoiceIds = [...new Set(Object.values(state.multi.localHeldNotes).filter(Boolean))];
-  heldVoiceIds.forEach((voiceId) => {
-    stopHeldMultiNote(voiceId, shouldBroadcast);
+  const localVoiceIds = [...new Set(Object.values(state.multi.localHeldNotes).filter(Boolean))];
+  const allActiveVoiceIds = [...new Set([...localVoiceIds, ...Object.keys(state.multi.activeMusicVoices || {})])];
+
+  allActiveVoiceIds.forEach((voiceId) => {
+    stopHeldMultiNote(voiceId, shouldBroadcast && localVoiceIds.includes(voiceId));
   });
+
   state.multi.localHeldNotes = {};
   releaseMultiButtonState();
 }
