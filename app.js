@@ -3528,14 +3528,15 @@ function startHeldMultiNote(noteId, options = {}) {
   );
 
   if (canPlayHere) {
-    const voice = createMultiInstrumentVoice(toneContext, note, instrument.id, { sustain: true });
+    const shouldUseSustainEnvelope = !isRemote;
+    const voice = createMultiInstrumentVoice(toneContext, note, instrument.id, { sustain: shouldUseSustainEnvelope });
     if (voice) {
       const fallbackHoldMs = isRemote
         ? (instrument.id === "violin"
-            ? 1700
+            ? 900
             : (instrument.id === "panflute" || instrument.id === "ocarina")
-              ? 1350
-              : 1100)
+              ? 720
+              : 650)
         : 12000;
       const safetyTimer = !shouldBroadcast
         ? window.setTimeout(() => {
@@ -3549,6 +3550,7 @@ function startHeldMultiNote(noteId, options = {}) {
         noteId,
         instrumentId: instrument.id,
         safetyTimer,
+        isRemote,
       };
     }
   }
@@ -3601,11 +3603,13 @@ function stopHeldMultiNote(voiceId, shouldBroadcast = false) {
   }
 
   try {
-    const releaseTime = activeVoice?.instrumentId === "violin"
-      ? 0.62
-      : (activeVoice?.instrumentId === "panflute" || activeVoice?.instrumentId === "ocarina")
-        ? 0.34
-        : 0.18;
+    const releaseTime = activeVoice?.isRemote
+      ? (activeVoice?.instrumentId === "violin" ? 0.22 : 0.16)
+      : activeVoice?.instrumentId === "violin"
+        ? 0.62
+        : (activeVoice?.instrumentId === "panflute" || activeVoice?.instrumentId === "ocarina")
+          ? 0.34
+          : 0.18;
     activeVoice?.stop?.(releaseTime);
   } catch {
     // ignore stop errors for already released voices
