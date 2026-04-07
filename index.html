@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Noto+Sans+JP:wght@400;700;900&family=Zen+Kurenaido&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260407i" />
+  <link rel="stylesheet" href="styles.css?v=20260407j" />
 </head>
 <body>
   <div id="screen-home" class="screen active">
@@ -29,7 +29,6 @@
       <p class="kicker">Univers pour mon amoureuse</p>
       <h1>🌹 Notre merveilleux royaume 👑</h1>
       <p>Un royaume, mille surprises.</p>
-
     </header>
 
     <main class="home-main">
@@ -272,7 +271,10 @@
             <p class="kicker">Mélodie commune</p>
             <h3>Musique</h3>
           </div>
-          <button id="btn-toggle-sky-piano" class="secondary-cta multi-music-launch" type="button" aria-expanded="false" aria-controls="sky-piano-panel">Musique</button>
+          <div class="multi-music-actions">
+            <button id="btn-toggle-sky-piano" class="secondary-cta multi-music-launch" type="button" aria-expanded="false" aria-controls="sky-piano-panel">Musique</button>
+            <button id="btn-open-studio" class="secondary-cta multi-music-launch" type="button">Studio</button>
+          </div>
         </div>
 
         <section id="sky-piano-panel" class="multi-sky-panel" hidden>
@@ -293,6 +295,7 @@
               <button class="multi-instrument-btn" type="button" data-multi-instrument="violin" aria-pressed="false">🎻 Violon</button>
               <button class="multi-instrument-btn" type="button" data-multi-instrument="panflute" aria-pressed="false">🪈 Flûte de pan</button>
               <button class="multi-instrument-btn" type="button" data-multi-instrument="ocarina" aria-pressed="false">🎶 Ocarina</button>
+              <button class="multi-instrument-btn" type="button" data-multi-instrument="celestialguitar" aria-pressed="false">🎸 Guitarre céleste</button>
             </div>
           </div>
           <div id="sky-piano-grid" class="multi-music-grid sky-piano-grid" aria-label="Instruments interactifs du salon"></div>
@@ -317,6 +320,88 @@
         <button class="big-cta" type="submit">Envoyer</button>
       </form>
     </aside>
+  </div>
+
+  <div id="screen-studio" class="screen">
+    <div class="music-bg multi-bg"></div>
+    <header class="quiz-top">
+      <div class="quiz-actions-top">
+        <button id="btn-studio-back" class="secondary-cta" type="button">Retour à Multi</button>
+        <div class="header-quick-actions">
+          <label class="theme-toggle-inline" aria-label="Mode sombre">
+            <span class="theme-inline-icon" aria-hidden="true">🌙</span>
+            <span class="toggle-switch toggle-switch-compact">
+              <input data-theme-toggle type="checkbox" />
+              <span class="toggle-slider"></span>
+            </span>
+          </label>
+          <button class="secondary-cta online-cta" type="button" data-online-trigger aria-label="Voir les personnes connectées">🟢</button>
+        </div>
+      </div>
+
+      <div class="multi-hero manga-panel">
+        <p class="kicker">Création locale</p>
+        <h2>Studio</h2>
+      </div>
+    </header>
+
+    <main class="multi-main studio-main">
+      <section class="multi-card manga-panel studio-card studio-shell">
+        <div class="multi-card-header studio-shell-header">
+          <div>
+            <p class="kicker">Arrangement</p>
+            <h3>Vue multipiste</h3>
+          </div>
+          <div class="studio-summary">
+            <span id="studio-track-count" class="studio-pill">0 piste</span>
+            <span id="studio-total-length" class="studio-pill">0:00</span>
+            <span id="studio-current-instrument" class="studio-pill">🎹 Piano</span>
+          </div>
+        </div>
+
+        <div class="studio-controls">
+          <button id="btn-studio-record" class="big-cta" type="button">● Enregistrer</button>
+          <button id="btn-studio-stop" class="secondary-cta" type="button">■ Stop</button>
+          <button id="btn-studio-play" class="secondary-cta" type="button">▶ Rejouer</button>
+          <button id="btn-studio-project" class="secondary-cta" type="button">Projet</button>
+          <button id="btn-studio-overdub" class="secondary-cta" type="button">⧉ Ajouter par-dessus</button>
+          <button id="btn-studio-save-take" class="secondary-cta" type="button">💾 Sauvegarder la piste</button>
+          <button id="btn-studio-continue-take" class="secondary-cta" type="button">↺ Continuer la piste</button>
+          <button id="btn-studio-clear" class="secondary-cta" type="button">🗑 Tout effacer</button>
+        </div>
+
+        <div id="studio-arrangement" class="studio-arrangement" hidden>
+          <div class="studio-arrangement-head">
+            <div class="studio-arrangement-labels">
+              <strong>Projet</strong>
+            </div>
+            <div id="studio-timeline-ruler" class="studio-timeline-ruler" aria-hidden="true"></div>
+          </div>
+          <div id="studio-layer-list" class="studio-layer-list studio-track-list" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section class="multi-card manga-panel studio-card">
+        <div class="multi-card-header">
+          <div>
+            <p class="kicker">Jeu d'instruments</p>
+            <h3>Clavier du studio</h3>
+          </div>
+          <button id="btn-toggle-studio-piano" class="secondary-cta multi-music-launch" type="button" aria-expanded="false" aria-controls="studio-piano-panel">Instruments & clavier</button>
+        </div>
+
+        <section id="studio-piano-panel" class="multi-sky-panel studio-sky-panel" hidden>
+          <div class="studio-instrument-row" aria-label="Choix des instruments du studio">
+            <button class="multi-instrument-btn active" type="button" data-multi-instrument="piano" aria-pressed="true">🎹 Piano</button>
+            <button class="multi-instrument-btn" type="button" data-multi-instrument="violin" aria-pressed="false">🎻 Violon</button>
+            <button class="multi-instrument-btn" type="button" data-multi-instrument="panflute" aria-pressed="false">🪈 Flûte de pan</button>
+            <button class="multi-instrument-btn" type="button" data-multi-instrument="ocarina" aria-pressed="false">🎶 Ocarina</button>
+            <button class="multi-instrument-btn" type="button" data-multi-instrument="celestialguitar" aria-pressed="false">🎸 Guitarre céleste</button>
+          </div>
+          <div id="studio-piano-grid" class="multi-music-grid sky-piano-grid" aria-label="Clavier du studio"></div>
+        </section>
+      </section>
+    </main>
   </div>
 
   <div id="multi-color-modal" class="dialog" hidden>
@@ -454,6 +539,6 @@
       return "";
     })();
   </script>
-  <script src="app.js?v=20260407i"></script>
+  <script src="app.js?v=20260407j"></script>
 </body>
 </html>

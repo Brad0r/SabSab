@@ -259,6 +259,7 @@ const el = {
   screenQuiz: document.getElementById("screen-quiz"),
   screenMusic: document.getElementById("screen-music"),
   screenMulti: document.getElementById("screen-multi"),
+  screenStudio: document.getElementById("screen-studio"),
   fade: document.getElementById("fade-overlay"),
 
   candlesLayer: document.getElementById("candles-layer"),
@@ -319,10 +320,30 @@ const el = {
   btnMusicHome: document.getElementById("btn-music-home"),
   btnToggleSkyPiano: document.getElementById("btn-toggle-sky-piano"),
   btnCloseSkyPiano: document.getElementById("btn-close-sky-piano"),
+  btnOpenStudio: document.getElementById("btn-open-studio"),
+  btnStudioBack: document.getElementById("btn-studio-back"),
   skyPianoPanel: document.getElementById("sky-piano-panel"),
   skyKeySelect: document.getElementById("sky-key-select"),
   skyPianoGrid: document.getElementById("sky-piano-grid"),
   skyPianoStatus: document.getElementById("sky-piano-status"),
+  btnToggleStudioPiano: document.getElementById("btn-toggle-studio-piano"),
+  studioPianoPanel: document.getElementById("studio-piano-panel"),
+  studioPianoGrid: document.getElementById("studio-piano-grid"),
+  studioStatus: document.getElementById("studio-status"),
+  studioArrangement: document.getElementById("studio-arrangement"),
+  studioTrackCount: document.getElementById("studio-track-count"),
+  studioTotalLength: document.getElementById("studio-total-length"),
+  studioCurrentInstrument: document.getElementById("studio-current-instrument"),
+  studioTimelineRuler: document.getElementById("studio-timeline-ruler"),
+  btnStudioProject: document.getElementById("btn-studio-project"),
+  btnStudioRecord: document.getElementById("btn-studio-record"),
+  btnStudioStop: document.getElementById("btn-studio-stop"),
+  btnStudioPlay: document.getElementById("btn-studio-play"),
+  btnStudioOverdub: document.getElementById("btn-studio-overdub"),
+  btnStudioSaveTake: document.getElementById("btn-studio-save-take"),
+  btnStudioContinueTake: document.getElementById("btn-studio-continue-take"),
+  btnStudioClear: document.getElementById("btn-studio-clear"),
+  studioLayerList: document.getElementById("studio-layer-list"),
   btnMultiHome: document.getElementById("btn-multi-home"),
   btnToggleMultiChat: document.getElementById("btn-open-multi-chat"),
   btnCloseMultiChat: document.getElementById("btn-close-multi-chat"),
@@ -456,6 +477,7 @@ const MULTI_INSTRUMENTS = [
   { id: "violin", icon: "🎻", label: "Violon", hint: "sample soutenu, maintiens la note pour la prolonger", sustain: true },
   { id: "panflute", icon: "🪈", label: "Flûte de pan", hint: "souffle doux, maintiens la note pour la prolonger", sustain: true },
   { id: "ocarina", icon: "🎶", label: "Ocarina", hint: "son rond et aérien, maintiens la note pour la prolonger", sustain: true },
+  { id: "celestialguitar", icon: "🎸", label: "Guitarre céleste", hint: "cordes brillantes extraites de ta vidéo", sustain: false },
 ];
 
 const MULTI_INSTRUMENT_SAMPLE_CONFIG = {
@@ -472,11 +494,46 @@ const MULTI_INSTRUMENT_SAMPLE_CONFIG = {
     loopEnd: 1.92,
   },
   panflute: {
-    path: "assets/instruments/panflute-c4.wav",
-    rootFreq: 261.63,
     loop: true,
-    loopStart: 0.22,
-    loopEnd: 1.18,
+    loopStart: 0.28,
+    loopEnd: 2.18,
+    notes: {
+      c3: { path: "assets/instruments/panflute-held-c3.wav", rootFreq: 130.81, displayName: "Si", displayLabel: "Si4" },
+      d3: { path: "assets/instruments/panflute-held-d3.wav", rootFreq: 146.83, displayName: "Do♯", displayLabel: "Do♯5" },
+      e3: { path: "assets/instruments/panflute-held-e3.wav", rootFreq: 164.81, displayName: "Ré♯", displayLabel: "Ré♯5" },
+      f3: { path: "assets/instruments/panflute-held-f3.wav", rootFreq: 174.61, displayName: "Mi", displayLabel: "Mi5" },
+      g3: { path: "assets/instruments/panflute-held-g3.wav", rootFreq: 196.0, displayName: "Fa♯", displayLabel: "Fa♯5" },
+      a3: { path: "assets/instruments/panflute-held-a3.wav", rootFreq: 220.0, displayName: "Sol♯", displayLabel: "Sol♯5" },
+      b3: { path: "assets/instruments/panflute-held-b3.wav", rootFreq: 246.94, displayName: "La♯", displayLabel: "La♯5" },
+      c4: { path: "assets/instruments/panflute-held-c4.wav", rootFreq: 261.63, displayName: "Si", displayLabel: "Si5" },
+      d4: { path: "assets/instruments/panflute-held-d4.wav", rootFreq: 293.66, displayName: "Do♯", displayLabel: "Do♯6" },
+      e4: { path: "assets/instruments/panflute-held-e4.wav", rootFreq: 329.63, displayName: "Ré♯", displayLabel: "Ré♯6" },
+      f4: { path: "assets/instruments/panflute-held-f4.wav", rootFreq: 349.23, displayName: "Mi", displayLabel: "Mi6" },
+      g4: { path: "assets/instruments/panflute-held-g4.wav", rootFreq: 392.0, displayName: "Fa♯", displayLabel: "Fa♯6" },
+      a4: { path: "assets/instruments/panflute-held-a4.wav", rootFreq: 440.0, displayName: "Sol♯", displayLabel: "Sol♯6" },
+      b4: { path: "assets/instruments/panflute-held-b4.wav", rootFreq: 493.88, displayName: "La♯", displayLabel: "La♯6" },
+      c5: { path: "assets/instruments/panflute-held-c5.wav", rootFreq: 523.25, displayName: "Si", displayLabel: "Si6" },
+    },
+  },
+  celestialguitar: {
+    loop: false,
+    notes: {
+      c3: { path: "assets/instruments/guitarre-celeste-c3.wav", rootFreq: 130.81, displayName: "Si", displayLabel: "Si3" },
+      d3: { path: "assets/instruments/guitarre-celeste-d3.wav", rootFreq: 146.83, displayName: "Do♯", displayLabel: "Do♯4" },
+      e3: { path: "assets/instruments/guitarre-celeste-e3.wav", rootFreq: 164.81, displayName: "Ré♯", displayLabel: "Ré♯4" },
+      f3: { path: "assets/instruments/guitarre-celeste-f3.wav", rootFreq: 174.61, displayName: "Mi", displayLabel: "Mi4" },
+      g3: { path: "assets/instruments/guitarre-celeste-g3.wav", rootFreq: 196.00, displayName: "Fa♯", displayLabel: "Fa♯4" },
+      a3: { path: "assets/instruments/guitarre-celeste-a3.wav", rootFreq: 220.00, displayName: "Sol♯", displayLabel: "Sol♯4" },
+      b3: { path: "assets/instruments/guitarre-celeste-b3.wav", rootFreq: 246.94, displayName: "La♯", displayLabel: "La♯4" },
+      c4: { path: "assets/instruments/guitarre-celeste-c4.wav", rootFreq: 261.63, displayName: "Si", displayLabel: "Si4" },
+      d4: { path: "assets/instruments/guitarre-celeste-d4.wav", rootFreq: 293.66, displayName: "Do♯", displayLabel: "Do♯5" },
+      e4: { path: "assets/instruments/guitarre-celeste-e4.wav", rootFreq: 329.63, displayName: "Ré♯", displayLabel: "Ré♯5" },
+      f4: { path: "assets/instruments/guitarre-celeste-f4.wav", rootFreq: 349.23, displayName: "Mi", displayLabel: "Mi5" },
+      g4: { path: "assets/instruments/guitarre-celeste-g4.wav", rootFreq: 392.00, displayName: "Fa♯", displayLabel: "Fa♯5" },
+      a4: { path: "assets/instruments/guitarre-celeste-a4.wav", rootFreq: 440.00, displayName: "Sol♯", displayLabel: "Sol♯5" },
+      b4: { path: "assets/instruments/guitarre-celeste-b4.wav", rootFreq: 493.88, displayName: "La♯", displayLabel: "La♯5" },
+      c5: { path: "assets/instruments/guitarre-celeste-c5.wav", rootFreq: 523.25, displayName: "Si", displayLabel: "Si5" },
+    },
   },
 };
 
@@ -489,10 +546,6 @@ const MULTI_REAL_INSTRUMENT_PRESETS = {
   violin: {
     url: "https://surikov.github.io/webaudiofontdata/sound/0400_GeneralUserGS_sf2_file.js",
     variable: "_tone_0400_GeneralUserGS_sf2_file",
-  },
-  panflute: {
-    url: "https://surikov.github.io/webaudiofontdata/sound/0750_GeneralUserGS_sf2_file.js",
-    variable: "_tone_0750_GeneralUserGS_sf2_file",
   },
   ocarina: {
     url: "https://surikov.github.io/webaudiofontdata/sound/0790_FluidR3_GM_sf2_file.js",
@@ -518,21 +571,21 @@ const SKY_NOTE_NAMES_SHARP = ["Do", "Do♯", "Ré", "Ré♯", "Mi", "Fa", "Fa♯
 const SKY_NOTE_NAMES_FLAT = ["Do", "Ré♭", "Ré", "Mi♭", "Mi", "Fa", "Sol♭", "Sol", "La♭", "La", "Si♭", "Si"];
 const SKY_MAJOR_INTERVALS = [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19, 21, 23, 24];
 const SKY_PIANO_LAYOUT = [
-  { noteId: "c3", keyLabel: "Y", codes: ["KeyY"], aliases: ["y", "Y"] },
-  { noteId: "d3", keyLabel: "U", codes: ["KeyU"], aliases: ["u", "U"] },
-  { noteId: "e3", keyLabel: "I", codes: ["KeyI"], aliases: ["i", "I"] },
-  { noteId: "f3", keyLabel: "O", codes: ["KeyO"], aliases: ["o", "O"] },
-  { noteId: "g3", keyLabel: "P", codes: ["KeyP"], aliases: ["p", "P"] },
-  { noteId: "a3", keyLabel: "H", codes: ["KeyH"], aliases: ["h", "H"] },
-  { noteId: "b3", keyLabel: "J", codes: ["KeyJ"], aliases: ["j", "J"] },
-  { noteId: "c4", keyLabel: "K", codes: ["KeyK"], aliases: ["k", "K"] },
-  { noteId: "d4", keyLabel: "L", codes: ["KeyL"], aliases: ["l", "L"] },
-  { noteId: "e4", keyLabel: "M", codes: ["KeyM"], aliases: ["m", "M"] },
-  { noteId: "f4", keyLabel: "N", codes: ["KeyN"], aliases: ["n", "N"] },
-  { noteId: "g4", keyLabel: ",", codes: ["Comma"], aliases: [","] },
-  { noteId: "a4", keyLabel: ";", codes: ["Semicolon"], aliases: [";"] },
-  { noteId: "b4", keyLabel: ":", codes: ["Quote"], aliases: [":"] },
-  { noteId: "c5", keyLabel: "!", codes: ["Digit1"], aliases: ["!"] },
+  { noteId: "c3", keyLabel: "Y", codes: ["KeyY"], aliases: ["y", "Y"], symbol: "hybrid" },
+  { noteId: "d3", keyLabel: "U", codes: ["KeyU"], aliases: ["u", "U"], symbol: "diamond" },
+  { noteId: "e3", keyLabel: "I", codes: ["KeyI"], aliases: ["i", "I"], symbol: "circle" },
+  { noteId: "f3", keyLabel: "O", codes: ["KeyO"], aliases: ["o", "O"], symbol: "diamond" },
+  { noteId: "g3", keyLabel: "P", codes: ["KeyP"], aliases: ["p", "P"], symbol: "circle" },
+  { noteId: "a3", keyLabel: "H", codes: ["KeyH"], aliases: ["h", "H"], symbol: "circle" },
+  { noteId: "b3", keyLabel: "J", codes: ["KeyJ"], aliases: ["j", "J"], symbol: "diamond" },
+  { noteId: "c4", keyLabel: "K", codes: ["KeyK"], aliases: ["k", "K"], symbol: "hybrid" },
+  { noteId: "d4", keyLabel: "L", codes: ["KeyL"], aliases: ["l", "L"], symbol: "diamond" },
+  { noteId: "e4", keyLabel: "M", codes: ["KeyM"], aliases: ["m", "M"], symbol: "circle" },
+  { noteId: "f4", keyLabel: "N", codes: ["KeyN"], aliases: ["n", "N"], symbol: "circle" },
+  { noteId: "g4", keyLabel: ",", codes: ["Comma"], aliases: [","] , symbol: "diamond" },
+  { noteId: "a4", keyLabel: ";", codes: ["Semicolon"], aliases: [";"] , symbol: "circle" },
+  { noteId: "b4", keyLabel: ":", codes: ["Quote"], aliases: [":"] , symbol: "diamond" },
+  { noteId: "c5", keyLabel: "!", codes: ["Digit1"], aliases: ["!"], symbol: "hybrid" },
 ];
 
 function readSavedTheme() {
@@ -758,6 +811,21 @@ const state = {
     historyCutoff: 0,
     activeMusicVoices: {},
     localHeldNotes: {},
+  },
+  studio: {
+    layers: [],
+    pendingLayer: null,
+    selectedLayerId: "",
+    mutedLayerIds: [],
+    projectOpen: false,
+    isRecording: false,
+    isPlaying: false,
+    recordStartTime: 0,
+    recordOffset: 0,
+    activeRecordingNotes: {},
+    scheduledTimers: [],
+    scheduledVoiceIds: [],
+    nextLayerId: 1,
   },
   home: {
     total: 0,
@@ -2367,27 +2435,46 @@ function pickPack(packs, lastIndexRef) {
 }
 
 function setActiveScreen(name) {
-  const wasMultiActive = el.screenMulti.classList.contains("active");
+  const wasMultiActive = Boolean(el.screenMulti?.classList.contains("active"));
+  const wasStudioActive = Boolean(el.screenStudio?.classList.contains("active"));
 
-  el.screenHome.classList.remove("active");
-  el.screenGame.classList.remove("active");
-  el.screenQuiz.classList.remove("active");
-  el.screenMusic.classList.remove("active");
-  el.screenMulti.classList.remove("active");
-  if (name === "home") el.screenHome.classList.add("active");
-  if (name === "game") el.screenGame.classList.add("active");
-  if (name === "quiz") el.screenQuiz.classList.add("active");
-  if (name === "music") el.screenMusic.classList.add("active");
+  el.screenHome?.classList.remove("active");
+  el.screenGame?.classList.remove("active");
+  el.screenQuiz?.classList.remove("active");
+  el.screenMusic?.classList.remove("active");
+  el.screenMulti?.classList.remove("active");
+  el.screenStudio?.classList.remove("active");
+  if (name === "home") el.screenHome?.classList.add("active");
+  if (name === "game") el.screenGame?.classList.add("active");
+  if (name === "quiz") el.screenQuiz?.classList.add("active");
+  if (name === "music") el.screenMusic?.classList.add("active");
   if (name === "multi") {
-    el.screenMulti.classList.add("active");
+    el.screenMulti?.classList.add("active");
     connectMultiRealtime();
     syncMultiCanvasSize();
     redrawMultiCanvasHistory();
   }
+  if (name === "studio") {
+    el.screenStudio?.classList.add("active");
+    renderSkyPiano();
+    refreshStudioUI();
+  }
+
+  if ((wasMultiActive && name !== "multi") || (wasStudioActive && name !== "studio")) {
+    releaseAllLocalMultiNotes(true);
+  }
 
   if (wasMultiActive && name !== "multi") {
-    releaseAllLocalMultiNotes(true);
     clearOwnMultiCanvas(true, "leave-screen");
+    toggleSkyPiano(false);
+  }
+
+  if (wasStudioActive && name !== "studio") {
+    stopStudioPlayback();
+    if (state.studio.isRecording) {
+      stopStudioRecording();
+    }
+    toggleStudioPiano(false);
   }
 }
 
@@ -2571,6 +2658,18 @@ function isMultiScreenActive() {
   return Boolean(el.screenMulti?.classList.contains("active"));
 }
 
+function isStudioScreenActive() {
+  return Boolean(el.screenStudio?.classList.contains("active"));
+}
+
+function isMusicWorkspaceActive() {
+  return isMultiScreenActive() || isStudioScreenActive();
+}
+
+function getMusicKeyboardGrids() {
+  return [el.skyPianoGrid, el.studioPianoGrid].filter(Boolean);
+}
+
 function getCurrentMultiInstrument(instrumentId = state.audio.multiInstrument) {
   const safeInstrumentId = instrumentId === "triangle" ? "ocarina" : instrumentId;
   return MULTI_INSTRUMENTS.find((entry) => entry.id === safeInstrumentId) || MULTI_INSTRUMENTS[0];
@@ -2578,15 +2677,16 @@ function getCurrentMultiInstrument(instrumentId = state.audio.multiInstrument) {
 
 function getMultiInstrumentReadyMessage(instrumentId = state.audio.multiInstrument) {
   const instrument = getCurrentMultiInstrument(instrumentId);
-  const holdHint = instrument.sustain ? " Maintiens la touche ou le doigt pour faire durer le son." : "";
-  return `${instrument.label} prêt : Do3 → Do5 sur Y U I O P · H J K L M · N , ; : !${holdHint}`;
+  return `${instrument.label} prêt.`;
 }
 
 function releaseMultiButtonState(noteId = "") {
   const selector = noteId ? `[data-note="${noteId}"]` : "[data-note]";
-  el.skyPianoGrid?.querySelectorAll(selector).forEach((button) => {
-    button.classList.remove("is-held");
-    delete button.dataset.activeVoiceId;
+  getMusicKeyboardGrids().forEach((grid) => {
+    grid.querySelectorAll(selector).forEach((button) => {
+      button.classList.remove("is-held");
+      delete button.dataset.activeVoiceId;
+    });
   });
 }
 
@@ -2626,12 +2726,24 @@ function setMultiInstrument(instrumentId) {
   releaseAllLocalMultiNotes(true);
   state.audio.multiInstrument = instrument.id;
   warmupMultiInstrumentSample(instrument.id);
-  updateMultiInstrumentButtons();
+  renderSkyPiano();
   toggleMultiInstrumentMenu(false);
 }
 
-function getMultiInstrumentSampleConfig(instrumentId) {
-  return MULTI_INSTRUMENT_SAMPLE_CONFIG[instrumentId] || null;
+function getMultiInstrumentSampleConfig(instrumentId, noteId = "") {
+  const config = MULTI_INSTRUMENT_SAMPLE_CONFIG[instrumentId] || null;
+  if (!config) return null;
+  if (noteId && config.notes?.[noteId]) {
+    return {
+      ...config,
+      ...config.notes[noteId],
+    };
+  }
+  return config;
+}
+
+function getMultiInstrumentSampleCacheKey(instrumentId, noteId = "") {
+  return noteId ? `${instrumentId}:${noteId}` : instrumentId;
 }
 
 function getRealMultiInstrumentPresetConfig(instrumentId) {
@@ -2735,11 +2847,12 @@ async function loadRealMultiInstrumentPreset(instrumentId, toneContext = ensureS
   return promise;
 }
 
-async function loadMultiInstrumentSample(instrumentId, toneContext = ensureSkyToneContext(false)) {
-  const sampleConfig = getMultiInstrumentSampleConfig(instrumentId);
-  if (!sampleConfig || !toneContext || typeof fetch !== "function") return null;
+async function loadMultiInstrumentSample(instrumentId, toneContext = ensureSkyToneContext(false), noteId = "") {
+  const sampleConfig = getMultiInstrumentSampleConfig(instrumentId, noteId);
+  if (!sampleConfig || !sampleConfig.path || !toneContext || typeof fetch !== "function") return null;
 
-  const cached = multiInstrumentSampleCache.get(instrumentId);
+  const cacheKey = getMultiInstrumentSampleCacheKey(instrumentId, noteId);
+  const cached = multiInstrumentSampleCache.get(cacheKey);
   if (cached?.status === "ready" && cached.buffer) {
     return cached.buffer;
   }
@@ -2756,21 +2869,21 @@ async function loadMultiInstrumentSample(instrumentId, toneContext = ensureSkyTo
     })
     .then((buffer) => toneContext.decodeAudioData(buffer.slice(0)))
     .then((audioBuffer) => {
-      multiInstrumentSampleCache.set(instrumentId, {
+      multiInstrumentSampleCache.set(cacheKey, {
         status: "ready",
         buffer: audioBuffer,
       });
       return audioBuffer;
     })
     .catch((error) => {
-      multiInstrumentSampleCache.set(instrumentId, {
+      multiInstrumentSampleCache.set(cacheKey, {
         status: "error",
         error,
       });
       throw error;
     });
 
-  multiInstrumentSampleCache.set(instrumentId, {
+  multiInstrumentSampleCache.set(cacheKey, {
     status: "loading",
     promise,
   });
@@ -2782,6 +2895,15 @@ function warmupMultiInstrumentSample(instrumentId) {
   const toneContext = ensureSkyToneContext(false);
   if (!toneContext) return;
   loadRealMultiInstrumentPreset(instrumentId, toneContext).catch(() => {});
+
+  const config = MULTI_INSTRUMENT_SAMPLE_CONFIG[instrumentId] || null;
+  if (config?.notes) {
+    Object.keys(config.notes).forEach((noteId) => {
+      loadMultiInstrumentSample(instrumentId, toneContext, noteId).catch(() => {});
+    });
+    return;
+  }
+
   loadMultiInstrumentSample(instrumentId, toneContext).catch(() => {});
 }
 
@@ -2803,13 +2925,30 @@ function buildMultiNoiseBuffer(audioContext, duration = 1.8) {
   return buffer;
 }
 
+function getMultiInstrumentMixGain(instrumentId = "") {
+  switch (String(instrumentId || "").trim()) {
+    case "violin":
+      return 1;
+    case "panflute":
+      return 3.1;
+    case "ocarina":
+      return 1.08;
+    case "celestialguitar":
+      return 2.9;
+    case "piano":
+    default:
+      return 1;
+  }
+}
+
 function createMultiInstrumentVoice(toneContext, note, instrumentId = state.audio.multiInstrument, options = {}) {
   if (!toneContext || !skyPianoMasterGain || !note) return null;
 
   const now = toneContext.currentTime;
   const instrument = getCurrentMultiInstrument(instrumentId);
-  const sampleConfig = getMultiInstrumentSampleConfig(instrument.id);
-  const sampleEntry = sampleConfig ? multiInstrumentSampleCache.get(instrument.id) : null;
+  const sampleConfig = getMultiInstrumentSampleConfig(instrument.id, note.id);
+  const sampleCacheKey = sampleConfig ? getMultiInstrumentSampleCacheKey(instrument.id, note.id) : "";
+  const sampleEntry = sampleConfig ? multiInstrumentSampleCache.get(sampleCacheKey) : null;
   const realPreset = multiWebAudioFontReadyPresets.get(instrument.id) || null;
   const mixer = toneContext.createGain();
   const filter = toneContext.createBiquadFilter();
@@ -2817,7 +2956,9 @@ function createMultiInstrumentVoice(toneContext, note, instrumentId = state.audi
   const oscillators = [];
   const extraSources = [];
   const toneLevel = Math.max(0.02, state.audio.musicVolume * 0.13);
+  const instrumentMixGain = getMultiInstrumentMixGain(instrument.id);
 
+  mixer.gain.setValueAtTime(instrumentMixGain, now);
   mixer.connect(filter);
   filter.connect(voiceGain);
   voiceGain.connect(skyPianoMasterGain);
@@ -2962,8 +3103,10 @@ function createMultiInstrumentVoice(toneContext, note, instrumentId = state.audi
     const volume = instrument.id === "piano"
       ? Math.min(0.72, 0.32 + (state.audio.musicVolume * 0.44))
       : instrument.id === "ocarina"
-        ? Math.min(0.54, 0.22 + (state.audio.musicVolume * 0.28))
-        : Math.min(0.62, 0.26 + (state.audio.musicVolume * 0.38));
+        ? Math.min(0.7, 0.3 + (state.audio.musicVolume * 0.4))
+        : instrument.id === "panflute"
+          ? Math.min(0.74, 0.3 + (state.audio.musicVolume * 0.42))
+          : Math.min(0.62, 0.26 + (state.audio.musicVolume * 0.38));
 
     switch (instrument.id) {
       case "piano":
@@ -2980,19 +3123,19 @@ function createMultiInstrumentVoice(toneContext, note, instrumentId = state.audi
         filter.frequency.setValueAtTime(3000, now);
         filter.frequency.exponentialRampToValueAtTime(2350, now + 0.9);
         filter.Q.value = 1.2;
-        addAmbienceSend(0.56, 0.082, 0.2);
+        addAmbienceSend(0.6, 0.086, 0.22);
         voiceGain.gain.setValueAtTime(0.0001, now);
         voiceGain.gain.exponentialRampToValueAtTime(1.02, now + 0.018);
-        voiceGain.gain.linearRampToValueAtTime(0.94, now + 0.075);
-        releaseSeconds = 0.72;
+        voiceGain.gain.linearRampToValueAtTime(0.97, now + 0.11);
+        releaseSeconds = options.sustain ? 0.88 : 0.76;
         break;
       case "panflute":
         filter.type = "bandpass";
         filter.frequency.setValueAtTime(1450, now);
         filter.Q.value = 1.35;
         voiceGain.gain.setValueAtTime(0.0001, now);
-        voiceGain.gain.linearRampToValueAtTime(0.84, now + 0.03);
-        voiceGain.gain.linearRampToValueAtTime(options.sustain ? 0.72 : 0.68, now + 0.18);
+        voiceGain.gain.linearRampToValueAtTime(1.02, now + 0.03);
+        voiceGain.gain.linearRampToValueAtTime(options.sustain ? 0.88 : 0.82, now + 0.18);
         releaseSeconds = options.sustain ? 0.44 : 0.72;
         break;
       case "ocarina":
@@ -3002,8 +3145,8 @@ function createMultiInstrumentVoice(toneContext, note, instrumentId = state.audi
         filter.Q.value = 0.92;
         addAmbienceSend(0.12, 0.028, 0.045);
         voiceGain.gain.setValueAtTime(0.0001, now);
-        voiceGain.gain.linearRampToValueAtTime(0.9, now + 0.04);
-        voiceGain.gain.linearRampToValueAtTime(options.sustain ? 0.76 : 0.68, now + 0.2);
+        voiceGain.gain.linearRampToValueAtTime(1.06, now + 0.04);
+        voiceGain.gain.linearRampToValueAtTime(options.sustain ? 0.92 : 0.84, now + 0.2);
         releaseSeconds = options.sustain ? 0.5 : 0.72;
         break;
       default:
@@ -3098,28 +3241,41 @@ function createMultiInstrumentVoice(toneContext, note, instrumentId = state.audi
         filter.Q.value = 2.1;
         addPlaybackVibrato(source.playbackRate, 5.1, 0.007);
         addBreathNoise(0.0045, Math.max(900, note.freq * 3.1));
-        addAmbienceSend(0.12, 0.065, 0.08);
+        addAmbienceSend(0.16, 0.072, 0.1);
         voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.04, toneLevel * 1.12), now + 0.018);
-        voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.029, toneLevel * 0.94), now + 0.082);
+        voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.031, toneLevel * (options.sustain ? 0.99 : 0.94)), now + 0.12);
         if (!options.sustain) {
-          voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + 2.12);
+          voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + 2.22);
         }
-        releaseSeconds = 0.5;
-        autoStopAfter = options.sustain ? 0 : 2.16;
+        releaseSeconds = options.sustain ? 0.78 : 0.58;
+        autoStopAfter = options.sustain ? 0 : 2.26;
         break;
       case "panflute":
         filter.type = "bandpass";
-        filter.frequency.setValueAtTime(1450, now);
-        filter.Q.value = 1.45;
-        addPlaybackVibrato(source.playbackRate, 4.05, 0.003);
-        addBreathNoise(0.0065, Math.max(900, note.freq * 4.3));
-        voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.034, toneLevel * 0.98), now + 0.03);
-        voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.012, toneLevel * (options.sustain ? 0.42 : 0.32)), now + 0.22);
+        filter.frequency.setValueAtTime(1650, now);
+        filter.Q.value = 1.6;
+        addPlaybackVibrato(source.playbackRate, 4.0, 0.0024);
+        addBreathNoise(0.0055, Math.max(960, note.freq * 4.6));
+        addAmbienceSend(0.08, 0.03, 0.05);
+        voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.092, toneLevel * 2.65), now + 0.028);
+        voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.04, toneLevel * (options.sustain ? 1.34 : 1.08)), now + 0.24);
         if (!options.sustain) {
-          voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.88);
+          voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.35);
         }
-        releaseSeconds = options.sustain ? 0.42 : 0.58;
-        autoStopAfter = options.sustain ? 0 : 0.92;
+        releaseSeconds = options.sustain ? 0.58 : 0.72;
+        autoStopAfter = options.sustain ? 0 : 1.4;
+        break;
+      case "celestialguitar":
+        filter.type = "lowpass";
+        filter.frequency.setValueAtTime(3600, now);
+        filter.frequency.exponentialRampToValueAtTime(1750, now + 0.95);
+        filter.Q.value = 1.1;
+        addAmbienceSend(0.2, 0.05, 0.12);
+        voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.094, toneLevel * 2.6), now + 0.01);
+        voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.032, toneLevel * 0.96), now + 0.26);
+        voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + 2.35);
+        releaseSeconds = 0.76;
+        autoStopAfter = 2.38;
         break;
       case "triangle":
       default:
@@ -3198,17 +3354,17 @@ function createMultiInstrumentVoice(toneContext, note, instrumentId = state.audi
       addOscillator("sine", note.freq * 2, 0.08);
       addBreathNoise(0.006, Math.max(1000, note.freq * 3.6));
       addVibrato([bow, edge], 5.15, Math.max(2.2, note.freq * 0.0048));
-      addAmbienceSend(0.52, 0.078, 0.18);
+      addAmbienceSend(0.56, 0.082, 0.2);
       filter.frequency.setValueAtTime(3000, now);
       filter.frequency.exponentialRampToValueAtTime(2250, now + 0.7);
       filter.Q.value = 1.45;
       voiceGain.gain.linearRampToValueAtTime(Math.max(0.04, toneLevel * 1.12), now + 0.02);
-      voiceGain.gain.linearRampToValueAtTime(Math.max(0.03, toneLevel * 0.94), now + 0.075);
+      voiceGain.gain.linearRampToValueAtTime(Math.max(0.031, toneLevel * (options.sustain ? 0.98 : 0.94)), now + 0.11);
       if (!options.sustain) {
-        voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + 2.22);
+        voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + 2.28);
       }
-      releaseSeconds = 0.62;
-      autoStopAfter = options.sustain ? 0 : 2.16;
+      releaseSeconds = options.sustain ? 0.84 : 0.66;
+      autoStopAfter = options.sustain ? 0 : 2.22;
       break;
     }
     case "panflute": {
@@ -3221,8 +3377,8 @@ function createMultiInstrumentVoice(toneContext, note, instrumentId = state.audi
       filter.type = "bandpass";
       filter.frequency.setValueAtTime(1400, now);
       filter.Q.value = 1.5;
-      voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.032, toneLevel * 0.95), now + 0.025);
-      voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.011, toneLevel * (options.sustain ? 0.4 : 0.3)), now + 0.2);
+      voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.044, toneLevel * 1.28), now + 0.025);
+      voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.017, toneLevel * (options.sustain ? 0.56 : 0.42)), now + 0.2);
       if (!options.sustain) {
         voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.84);
       }
@@ -3241,13 +3397,31 @@ function createMultiInstrumentVoice(toneContext, note, instrumentId = state.audi
       filter.frequency.setValueAtTime(2150, now);
       filter.frequency.exponentialRampToValueAtTime(1650, now + 0.46);
       filter.Q.value = 0.95;
-      voiceGain.gain.linearRampToValueAtTime(Math.max(0.029, toneLevel * 0.82), now + 0.038);
-      voiceGain.gain.linearRampToValueAtTime(Math.max(0.012, toneLevel * (options.sustain ? 0.36 : 0.28)), now + 0.18);
+      voiceGain.gain.linearRampToValueAtTime(Math.max(0.04, toneLevel * 1.16), now + 0.038);
+      voiceGain.gain.linearRampToValueAtTime(Math.max(0.018, toneLevel * (options.sustain ? 0.52 : 0.4)), now + 0.18);
       if (!options.sustain) {
         voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.08);
       }
       releaseSeconds = options.sustain ? 0.42 : 0.58;
       autoStopAfter = options.sustain ? 0 : 1.12;
+      break;
+    }
+    case "celestialguitar": {
+      const pluck = addOscillator([1, 0.58, 0.23, 0.11, 0.04], note.freq, 0.52, -1.5);
+      const chime = addOscillator("triangle", note.freq * 2, 0.1, 2.2);
+      addOscillator("sine", note.freq * 0.5, 0.06);
+      addNoiseBurst({ type: "highpass", frequency: Math.max(1800, note.freq * 4.1), q: 0.9, peak: 0.01, attack: 0.003, decay: 0.06, duration: 0.18 });
+      addVibrato([pluck, chime], 4.2, Math.max(0.28, note.freq * 0.0008));
+      addAmbienceSend(0.18, 0.055, 0.1);
+      filter.type = "lowpass";
+      filter.frequency.setValueAtTime(3400, now);
+      filter.frequency.exponentialRampToValueAtTime(1600, now + 0.72);
+      filter.Q.value = 1.15;
+      voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.048, toneLevel * 1.36), now + 0.008);
+      voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.014, toneLevel * 0.38), now + 0.22);
+      voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.95);
+      releaseSeconds = 0.7;
+      autoStopAfter = 1.98;
       break;
     }
     case "triangle":
@@ -3338,9 +3512,9 @@ function startHeldMultiNote(noteId, options = {}) {
     stopHeldMultiNote(actualVoiceId, false);
   }
 
-  const toneContext = ensureSkyToneContext(shouldBroadcast || isMultiScreenActive());
+  const toneContext = ensureSkyToneContext(shouldBroadcast || isMusicWorkspaceActive());
   const canPlayHere = Boolean(
-    isMultiScreenActive()
+    isMusicWorkspaceActive()
     && toneContext
     && skyPianoMasterGain
     && !state.audio.mutedAll
@@ -3367,13 +3541,18 @@ function startHeldMultiNote(noteId, options = {}) {
     }
   }
 
-  if (isMultiScreenActive()) {
-    el.skyPianoGrid?.querySelectorAll(`[data-note="${noteId}"]`).forEach((button) => {
-      button.classList.add("is-held");
+  if (isMusicWorkspaceActive()) {
+    getMusicKeyboardGrids().forEach((grid) => {
+      grid.querySelectorAll(`[data-note="${noteId}"]`).forEach((button) => {
+        button.classList.add("is-held");
+      });
     });
 
-    if (el.multiMusicHint) {
+    if (el.multiMusicHint && isMultiScreenActive()) {
       el.multiMusicHint.textContent = `${note.label} au ${instrument.label} dans le salon.`;
+    }
+    if (isStudioScreenActive()) {
+      setStudioStatus(`${note.label} enregistré au ${instrument.label.toLowerCase()}.`);
     }
     setSkyPianoStatus(`${note.label} · ${instrument.label.toLowerCase()} maintenu dans le salon.`);
   }
@@ -3411,7 +3590,7 @@ function stopHeldMultiNote(voiceId, shouldBroadcast = false) {
 
   try {
     const releaseTime = activeVoice?.instrumentId === "violin"
-      ? 0.42
+      ? 0.62
       : (activeVoice?.instrumentId === "panflute" || activeVoice?.instrumentId === "ocarina")
         ? 0.34
         : 0.18;
@@ -3450,33 +3629,613 @@ function releaseAllLocalMultiNotes(shouldBroadcast = false) {
   releaseMultiButtonState();
 }
 
-function renderSkyPiano() {
-  if (!el.skyPianoGrid) return;
+function setStudioStatus(message = "") {
+  if (!el.studioStatus) return;
+  el.studioStatus.textContent = message || "";
+}
 
-  el.skyPianoGrid.innerHTML = "";
+function toggleStudioProject(forceOpen) {
+  if (!el.studioArrangement || !el.btnStudioProject) return;
+
+  const hasProject = getStudioCompositionLayers(true).some((layer) => Array.isArray(layer.events) && layer.events.length);
+  const shouldOpen = typeof forceOpen === "boolean" ? forceOpen : el.studioArrangement.hidden;
+  const canOpen = shouldOpen ? hasProject : true;
+
+  el.studioArrangement.hidden = !canOpen || !shouldOpen;
+  state.studio.projectOpen = !el.studioArrangement.hidden;
+  el.btnStudioProject.textContent = state.studio.projectOpen ? "Masquer projet" : "Projet";
+}
+
+function getStudioCompositionLayers(includePending = true) {
+  const savedLayers = Array.isArray(state.studio.layers) ? [...state.studio.layers] : [];
+  if (includePending && state.studio.pendingLayer?.events?.length) {
+    savedLayers.push(state.studio.pendingLayer);
+  }
+  return savedLayers;
+}
+
+function getStudioLayerDuration(layer) {
+  if (!layer || !Array.isArray(layer.events) || !layer.events.length) return 0;
+  return layer.events.reduce((maxDuration, event) => {
+    const startAt = Math.max(0, Number(event?.at || 0));
+    const tail = Number(event?.duration || 0) > 0.05
+      ? Number(event.duration)
+      : 1.1;
+    return Math.max(maxDuration, startAt + tail);
+  }, 0);
+}
+
+function getStudioLayerInstrumentIds(layer) {
+  if (!layer || !Array.isArray(layer.events)) return [];
+  return [...new Set(layer.events.map((event) => String(event?.instrumentId || "").trim()).filter(Boolean))];
+}
+
+function getStudioPrimaryInstrument(layer) {
+  const firstInstrumentId = getStudioLayerInstrumentIds(layer)[0] || state.audio.multiInstrument;
+  return getCurrentMultiInstrument(firstInstrumentId);
+}
+
+function getStudioArrangementDuration(includePending = true) {
+  const duration = getStudioCompositionLayers(includePending).reduce((maxDuration, layer) => {
+    return Math.max(maxDuration, getStudioLayerDuration(layer));
+  }, 0);
+
+  return Math.max(4, duration || 0);
+}
+
+function selectStudioLayer(layerId = "") {
+  state.studio.selectedLayerId = String(layerId || "").trim();
+  refreshStudioUI();
+}
+
+function toggleStudioLayerMute(layerId = "") {
+  const safeLayerId = String(layerId || "").trim();
+  if (!safeLayerId) return;
+
+  const muted = new Set(Array.isArray(state.studio.mutedLayerIds) ? state.studio.mutedLayerIds : []);
+  if (muted.has(safeLayerId)) {
+    muted.delete(safeLayerId);
+    setStudioStatus("Piste réactivée dans l'arrangement.");
+  } else {
+    muted.add(safeLayerId);
+    setStudioStatus("Piste mise en muet.");
+  }
+
+  state.studio.mutedLayerIds = [...muted];
+  refreshStudioUI();
+}
+
+function editStudioLayer(layerId = "") {
+  const safeLayerId = String(layerId || "").trim();
+  if (!safeLayerId || state.studio.isRecording) return false;
+
+  const existingLayer = state.studio.layers.find((layer) => layer.id === safeLayerId);
+  if (!existingLayer) return false;
+
+  stopStudioPlayback();
+  state.studio.layers = state.studio.layers.filter((layer) => layer.id !== safeLayerId);
+  state.studio.pendingLayer = {
+    ...existingLayer,
+    events: [...existingLayer.events].sort((a, b) => Number(a.at || 0) - Number(b.at || 0)),
+    pending: true,
+  };
+  state.studio.selectedLayerId = safeLayerId;
+  setStudioStatus(`${existingLayer.label} chargée pour retouche. Tu peux continuer ou rejouer dessus.`);
+  refreshStudioUI();
+  return true;
+}
+
+function stopStudioPlayback() {
+  if (Array.isArray(state.studio.scheduledTimers)) {
+    state.studio.scheduledTimers.forEach((timerId) => {
+      try {
+        window.clearTimeout(timerId);
+      } catch {
+        // ignore timer cleanup issues
+      }
+    });
+  }
+
+  if (Array.isArray(state.studio.scheduledVoiceIds)) {
+    state.studio.scheduledVoiceIds.forEach((voiceId) => {
+      stopHeldMultiNote(voiceId, false);
+    });
+  }
+
+  state.studio.scheduledTimers = [];
+  state.studio.scheduledVoiceIds = [];
+  state.studio.isPlaying = false;
+}
+
+function finishStudioHeldRecording(forceStopAt = null) {
+  if (!state.studio.pendingLayer) return;
+
+  const stopAt = typeof forceStopAt === "number"
+    ? forceStopAt
+    : Math.max(0, (performance.now() - state.studio.recordStartTime) / 1000);
+
+  Object.entries(state.studio.activeRecordingNotes || {}).forEach(([voiceId, entry]) => {
+    if (!entry) return;
+    const duration = Math.max(0.08, stopAt - Number(entry.at || 0));
+    state.studio.pendingLayer.events.push({
+      noteId: entry.noteId,
+      instrumentId: entry.instrumentId,
+      at: Number(entry.at || 0),
+      duration,
+      voiceId,
+    });
+  });
+
+  state.studio.activeRecordingNotes = {};
+}
+
+function recordStudioOneShot(noteId, instrumentId) {
+  if (!state.studio.isRecording || !isStudioScreenActive() || !state.studio.pendingLayer) return;
+
+  const at = Math.max(0, (performance.now() - state.studio.recordStartTime) / 1000);
+  state.studio.pendingLayer.events.push({
+    noteId,
+    instrumentId,
+    at,
+    duration: 0,
+  });
+}
+
+function registerStudioHeldNoteStart(noteId, instrumentId, voiceId) {
+  if (!state.studio.isRecording || !isStudioScreenActive() || !state.studio.pendingLayer) return;
+  const safeVoiceId = String(voiceId || "").trim();
+  if (!safeVoiceId) return;
+
+  state.studio.activeRecordingNotes[safeVoiceId] = {
+    noteId,
+    instrumentId,
+    at: Math.max(0, (performance.now() - state.studio.recordStartTime) / 1000),
+  };
+}
+
+function registerStudioHeldNoteStop(voiceId, fallbackNoteId = "") {
+  if (!state.studio.isRecording || !isStudioScreenActive() || !state.studio.pendingLayer) return;
+  const safeVoiceId = String(voiceId || "").trim();
+  if (!safeVoiceId) return;
+
+  const entry = state.studio.activeRecordingNotes[safeVoiceId];
+  if (!entry) return;
+
+  const stopAt = Math.max(0, (performance.now() - state.studio.recordStartTime) / 1000);
+  const duration = Math.max(0.08, stopAt - Number(entry.at || 0));
+
+  state.studio.pendingLayer.events.push({
+    noteId: entry.noteId || fallbackNoteId,
+    instrumentId: entry.instrumentId,
+    at: Number(entry.at || 0),
+    duration,
+    voiceId: safeVoiceId,
+  });
+
+  delete state.studio.activeRecordingNotes[safeVoiceId];
+}
+
+function saveStudioTake() {
+  if (state.studio.isRecording || !state.studio.pendingLayer?.events?.length) return;
+
+  const savedLayer = {
+    ...state.studio.pendingLayer,
+    label: state.studio.pendingLayer.label || `Piste ${state.studio.nextLayerId}`,
+    events: [...state.studio.pendingLayer.events].sort((a, b) => Number(a.at || 0) - Number(b.at || 0)),
+    pending: false,
+  };
+
+  state.studio.layers.push(savedLayer);
+  state.studio.pendingLayer = null;
+  state.studio.selectedLayerId = savedLayer.id;
+  state.studio.projectOpen = true;
+  toggleStudioProject(true);
+  setStudioStatus("");
+  refreshStudioUI();
+}
+
+function stopStudioRecording() {
+  if (!state.studio.isRecording) {
+    if (state.studio.isPlaying) {
+      stopStudioPlayback();
+      setStudioStatus("Lecture du studio arrêtée.");
+      refreshStudioUI();
+    }
+    return;
+  }
+
+  finishStudioHeldRecording();
+  state.studio.isRecording = false;
+  state.studio.recordOffset = 0;
+
+  if (state.studio.pendingLayer?.events?.length) {
+    state.studio.pendingLayer.events.sort((a, b) => Number(a.at || 0) - Number(b.at || 0));
+    state.studio.selectedLayerId = state.studio.pendingLayer.id;
+    setStudioStatus("Prise arrêtée. Sauvegarde la piste, continue-la ou retouche une autre ligne.");
+  } else {
+    setStudioStatus("Aucune note capturée pendant cette prise.");
+  }
+
+  refreshStudioUI();
+}
+
+function beginStudioRecording(options = {}) {
+  const { append = false, overdub = false } = options;
+  if (state.studio.isRecording) return;
+
+  ensureSkyToneContext(true);
+
+  if (append && !state.studio.pendingLayer && state.studio.selectedLayerId) {
+    editStudioLayer(state.studio.selectedLayerId);
+  }
+
+  if (append && !state.studio.pendingLayer) {
+    setStudioStatus("Choisis une piste à retoucher ou enregistre-en une nouvelle.");
+    refreshStudioUI();
+    return;
+  }
+
+  if (!append && state.studio.pendingLayer?.events?.length) {
+    saveStudioTake();
+  }
+
+  stopStudioPlayback();
+
+  if (!append || !state.studio.pendingLayer) {
+    const layerNumber = state.studio.nextLayerId;
+    state.studio.pendingLayer = {
+      id: `studio-layer-${layerNumber}`,
+      label: `Piste ${layerNumber}`,
+      events: [],
+      pending: true,
+    };
+    state.studio.nextLayerId += 1;
+    state.studio.recordOffset = 0;
+  } else {
+    state.studio.recordOffset = getStudioLayerDuration(state.studio.pendingLayer);
+  }
+
+  state.studio.recordStartTime = performance.now() - (state.studio.recordOffset * 1000);
+  state.studio.activeRecordingNotes = {};
+  state.studio.isRecording = true;
+  state.studio.selectedLayerId = state.studio.pendingLayer?.id || state.studio.selectedLayerId;
+
+  if (overdub) {
+    playStudioComposition({ includePending: true });
+    setStudioStatus("Overdub lancé : ajoute une nouvelle piste au-dessus du morceau.");
+  } else if (append) {
+    setStudioStatus("Retouche en cours… complète la piste sélectionnée.");
+  } else {
+    setStudioStatus("Enregistrement lancé… joue ta mélodie puis appuie sur Stop.");
+  }
+
+  refreshStudioUI();
+}
+
+function clearStudioProject() {
+  stopStudioPlayback();
+  state.studio.layers = [];
+  state.studio.pendingLayer = null;
+  state.studio.selectedLayerId = "";
+  state.studio.mutedLayerIds = [];
+  state.studio.projectOpen = false;
+  state.studio.isRecording = false;
+  state.studio.activeRecordingNotes = {};
+  state.studio.recordOffset = 0;
+  setStudioStatus("Studio vidé. Tu peux recommencer un nouveau morceau.");
+  refreshStudioUI();
+}
+
+function playStudioComposition(options = {}) {
+  const { includePending = true, layerId = "" } = options;
+  stopStudioPlayback();
+
+  const mutedLayerIds = new Set(Array.isArray(state.studio.mutedLayerIds) ? state.studio.mutedLayerIds : []);
+  const selectedLayers = getStudioCompositionLayers(includePending)
+    .filter((layer) => !layerId || layer.id === layerId)
+    .filter((layer) => layerId || !mutedLayerIds.has(layer.id));
+  const events = selectedLayers
+    .flatMap((layer) => Array.isArray(layer.events) ? layer.events : [])
+    .sort((a, b) => Number(a.at || 0) - Number(b.at || 0));
+
+  if (!events.length) {
+    setStudioStatus(layerId ? "Cette piste est vide pour l'instant." : "Enregistre d'abord une mélodie ou réactive une piste pour lancer le studio.");
+    refreshStudioUI();
+    return;
+  }
+
+  state.studio.isPlaying = true;
+  state.studio.scheduledTimers = [];
+  state.studio.scheduledVoiceIds = [];
+
+  events.forEach((event) => {
+    const startDelay = Math.max(0, Math.round(Number(event.at || 0) * 1000));
+    const instrumentId = event.instrumentId || state.audio.multiInstrument;
+    const duration = Math.max(0, Number(event.duration || 0));
+
+    if (duration > 0.05) {
+      const replayVoiceId = createRealtimeId("studio-replay");
+      state.studio.scheduledVoiceIds.push(replayVoiceId);
+      state.studio.scheduledTimers.push(window.setTimeout(() => {
+        startHeldMultiNote(event.noteId, {
+          shouldBroadcast: false,
+          instrumentId,
+          voiceId: replayVoiceId,
+        });
+      }, startDelay));
+      state.studio.scheduledTimers.push(window.setTimeout(() => {
+        stopHeldMultiNote(replayVoiceId, false);
+      }, startDelay + Math.max(80, Math.round(duration * 1000))));
+      return;
+    }
+
+    state.studio.scheduledTimers.push(window.setTimeout(() => {
+      playMultiMusicNote(event.noteId, false, instrumentId);
+    }, startDelay));
+  });
+
+  const arrangementDuration = Math.max(...selectedLayers.map((layer) => getStudioLayerDuration(layer)), 0.4);
+  state.studio.scheduledTimers.push(window.setTimeout(() => {
+    state.studio.isPlaying = false;
+    state.studio.scheduledTimers = [];
+    state.studio.scheduledVoiceIds = [];
+    setStudioStatus(layerId ? "Lecture de la piste terminée." : "Lecture du morceau terminée.");
+    refreshStudioUI();
+  }, Math.round((arrangementDuration + 0.4) * 1000)));
+
+  setStudioStatus(layerId ? "Lecture de la piste en cours…" : "Lecture de l'arrangement en cours…");
+  refreshStudioUI();
+}
+
+function renderStudioLayerList() {
+  if (!el.studioLayerList) return;
+  el.studioLayerList.innerHTML = "";
+
+  const layers = getStudioCompositionLayers(true);
+  if (!layers.length) {
+    const empty = document.createElement("div");
+    empty.className = "studio-empty";
+    empty.textContent = "Aucune piste.";
+    el.studioLayerList.appendChild(empty);
+    return;
+  }
+
+  const arrangementDuration = getStudioArrangementDuration(true);
+
+  layers.forEach((layer, index) => {
+    const isPending = layer === state.studio.pendingLayer;
+    const isSelected = state.studio.selectedLayerId === layer.id || (!state.studio.selectedLayerId && isPending);
+    const isMuted = Array.isArray(state.studio.mutedLayerIds) && state.studio.mutedLayerIds.includes(layer.id);
+    const instrument = getStudioPrimaryInstrument(layer);
+    const item = document.createElement("article");
+    item.className = `studio-layer-item studio-track-row${isPending ? " pending" : ""}${isSelected ? " selected" : ""}${isMuted ? " muted" : ""}`;
+    item.dataset.layerId = layer.id;
+
+    const top = document.createElement("div");
+    top.className = "studio-layer-top studio-track-top";
+
+    const titleWrap = document.createElement("div");
+    titleWrap.className = "studio-track-title-wrap";
+
+    const indexBadge = document.createElement("span");
+    indexBadge.className = "studio-track-index";
+    indexBadge.textContent = `Piste ${index + 1}`;
+
+    const title = document.createElement("strong");
+    title.textContent = `${layer.label || "Piste"}${isPending ? " · en attente" : ""}`;
+
+    const subtitle = document.createElement("small");
+    const instrumentNames = getStudioLayerInstrumentIds(layer)
+      .map((instrumentId) => getCurrentMultiInstrument(instrumentId).label)
+      .join(" · ") || instrument.label;
+    subtitle.textContent = isMuted ? `${instrumentNames} · muette` : instrumentNames;
+
+    titleWrap.append(indexBadge, title, subtitle);
+
+    const meta = document.createElement("div");
+    meta.className = "studio-layer-meta";
+
+    const notes = document.createElement("span");
+    notes.className = "studio-pill";
+    notes.textContent = `${layer.events.length} note${layer.events.length > 1 ? "s" : ""}`;
+
+    const duration = document.createElement("span");
+    duration.className = "studio-pill";
+    duration.textContent = formatTime(getStudioLayerDuration(layer));
+
+    meta.append(notes, duration);
+
+    const side = document.createElement("div");
+    side.className = "studio-track-side";
+    side.appendChild(meta);
+
+    const trashButton = document.createElement("button");
+    trashButton.type = "button";
+    trashButton.className = "secondary-cta studio-delete-track";
+    trashButton.dataset.studioAction = "delete-layer";
+    trashButton.dataset.layerId = layer.id;
+    trashButton.title = isPending ? "Jeter cette prise" : "Supprimer cette piste";
+    trashButton.setAttribute("aria-label", isPending ? "Jeter cette prise" : "Supprimer cette piste");
+    trashButton.textContent = "🗑";
+    side.appendChild(trashButton);
+
+    top.append(titleWrap, side);
+
+    const timeline = document.createElement("div");
+    timeline.className = "studio-track-timeline";
+    timeline.setAttribute("aria-label", `${layer.label || "Piste"} timeline`);
+
+    layer.events.forEach((event) => {
+      const block = document.createElement("span");
+      const note = MULTI_MUSIC_NOTES.find((entry) => entry.id === event.noteId);
+      const blockDuration = Number(event.duration || 0) > 0.05 ? Number(event.duration) : 0.18;
+      const startAt = Math.max(0, Number(event.at || 0));
+      const left = Math.max(0, (startAt / arrangementDuration) * 100);
+      const width = Math.max(2.5, (blockDuration / arrangementDuration) * 100);
+      const instrumentId = String(event.instrumentId || instrument.id || "piano").trim() || "piano";
+
+      block.className = `studio-note-block instrument-${instrumentId}`;
+      block.style.left = `${Math.min(96, left)}%`;
+      block.style.width = `${Math.max(2.5, Math.min(100 - left, width))}%`;
+      block.title = `${note?.label || event.noteId || "Note"} · ${getCurrentMultiInstrument(instrumentId).label} · ${formatTime(startAt)}`;
+      timeline.appendChild(block);
+    });
+
+    const actions = document.createElement("div");
+    actions.className = "studio-layer-actions";
+
+    const playButton = document.createElement("button");
+    playButton.type = "button";
+    playButton.className = "secondary-cta";
+    playButton.dataset.studioAction = "play-layer";
+    playButton.dataset.layerId = layer.id;
+    playButton.textContent = "▶ Écouter";
+    actions.appendChild(playButton);
+
+    const muteButton = document.createElement("button");
+    muteButton.type = "button";
+    muteButton.className = "secondary-cta";
+    muteButton.dataset.studioAction = "toggle-mute";
+    muteButton.dataset.layerId = layer.id;
+    muteButton.textContent = isMuted ? "🔊 Réactiver" : "🔇 Muet";
+    actions.appendChild(muteButton);
+
+    if (!isPending) {
+      const editButton = document.createElement("button");
+      editButton.type = "button";
+      editButton.className = "secondary-cta";
+      editButton.dataset.studioAction = "edit-layer";
+      editButton.dataset.layerId = layer.id;
+      editButton.textContent = "✎ Retoucher";
+      actions.appendChild(editButton);
+    }
+
+    item.append(top, timeline, actions);
+    el.studioLayerList.appendChild(item);
+  });
+}
+
+function refreshStudioUI() {
+  renderStudioLayerList();
+
+  const layers = getStudioCompositionLayers(true);
+  const hasPending = Boolean(state.studio.pendingLayer?.events?.length);
+  const hasAnyLayer = layers.some((layer) => Array.isArray(layer.events) && layer.events.length);
+  const selectedLayer = layers.find((layer) => layer.id === state.studio.selectedLayerId)
+    || state.studio.pendingLayer
+    || layers[layers.length - 1]
+    || null;
+  const arrangementDuration = getStudioArrangementDuration(true);
+  const visibleLayerCount = layers.length;
+
+  if (!state.studio.selectedLayerId && selectedLayer?.id) {
+    state.studio.selectedLayerId = selectedLayer.id;
+  }
+
+  if (el.studioTrackCount) {
+    el.studioTrackCount.textContent = `${visibleLayerCount} piste${visibleLayerCount > 1 ? "s" : ""}`;
+  }
+  if (el.studioTotalLength) {
+    el.studioTotalLength.textContent = formatTime(arrangementDuration);
+  }
+  if (el.studioCurrentInstrument) {
+    const instrument = selectedLayer ? getStudioPrimaryInstrument(selectedLayer) : getCurrentMultiInstrument();
+    el.studioCurrentInstrument.textContent = instrument.label;
+  }
+  if (el.studioTimelineRuler) {
+    el.studioTimelineRuler.innerHTML = "";
+    const totalTicks = Math.max(4, Math.ceil(arrangementDuration));
+    for (let tickIndex = 0; tickIndex <= totalTicks; tickIndex += 1) {
+      const tick = document.createElement("span");
+      tick.textContent = `${tickIndex}s`;
+      el.studioTimelineRuler.appendChild(tick);
+    }
+  }
+
+  if (el.studioArrangement) {
+    el.studioArrangement.hidden = !state.studio.projectOpen || !hasAnyLayer;
+  }
+  if (el.btnStudioProject) {
+    el.btnStudioProject.disabled = !hasAnyLayer;
+    el.btnStudioProject.textContent = state.studio.projectOpen && hasAnyLayer ? "Masquer projet" : "Projet";
+  }
+  if (el.btnStudioRecord) {
+    el.btnStudioRecord.disabled = state.studio.isRecording;
+    el.btnStudioRecord.textContent = state.studio.isRecording ? "● Enregistrement..." : "● Enregistrer";
+  }
+  if (el.btnStudioStop) {
+    el.btnStudioStop.disabled = !state.studio.isRecording && !state.studio.isPlaying;
+  }
+  if (el.btnStudioPlay) {
+    el.btnStudioPlay.disabled = !hasAnyLayer || state.studio.isRecording;
+  }
+  if (el.btnStudioOverdub) {
+    el.btnStudioOverdub.disabled = !hasAnyLayer || state.studio.isRecording;
+  }
+  if (el.btnStudioSaveTake) {
+    el.btnStudioSaveTake.disabled = !hasPending || state.studio.isRecording;
+  }
+  if (el.btnStudioContinueTake) {
+    el.btnStudioContinueTake.disabled = (!hasPending && !state.studio.selectedLayerId) || state.studio.isRecording;
+  }
+  if (el.btnStudioClear) {
+    el.btnStudioClear.disabled = !hasAnyLayer && !state.studio.isRecording;
+  }
+}
+
+function renderSkyKeyboardInto(grid) {
+  if (!grid) return;
+
+  grid.innerHTML = "";
+  const currentInstrument = getCurrentMultiInstrument();
 
   SKY_PIANO_LAYOUT.forEach((binding) => {
     const noteData = MULTI_MUSIC_NOTES.find((entry) => entry.id === binding.noteId);
     if (!noteData) return;
 
+    const sampleConfig = getMultiInstrumentSampleConfig(currentInstrument.id, noteData.id);
+    const displayLabel = sampleConfig?.displayLabel || noteData.label;
+    const symbol = binding.symbol || "circle";
+
     const button = document.createElement("button");
     button.type = "button";
     button.className = "sky-piano-key";
     button.dataset.note = noteData.id;
-    button.dataset.noteLabel = noteData.label;
+    button.dataset.noteLabel = displayLabel;
     button.dataset.noteFreq = String(noteData.freq);
     button.dataset.keyLabel = binding.keyLabel;
-    button.setAttribute("aria-label", `${noteData.label} — clavier ${binding.keyLabel}`);
+    button.dataset.symbol = symbol;
+    button.setAttribute("aria-label", `${displayLabel} — clavier ${binding.keyLabel}`);
     button.innerHTML = `
-      <strong class="sky-piano-note">${noteData.name}</strong>
-      <small class="sky-piano-octave">${noteData.label}</small>
-      <span class="sky-piano-keybind">${binding.keyLabel}</span>
+      <span class="sky-piano-glyph sky-piano-glyph--${symbol}" aria-hidden="true">
+        <span class="sky-piano-shape sky-piano-shape--diamond"></span>
+        <span class="sky-piano-shape sky-piano-shape--circle"></span>
+      </span>
     `;
-    el.skyPianoGrid.appendChild(button);
+    grid.appendChild(button);
   });
+}
 
+function renderSkyPiano() {
+  renderSkyKeyboardInto(el.skyPianoGrid);
+  renderSkyKeyboardInto(el.studioPianoGrid);
   updateMultiInstrumentButtons();
   setSkyPianoStatus(getMultiInstrumentReadyMessage());
+}
+
+function toggleStudioPiano(forceOpen) {
+  if (!el.studioPianoPanel || !el.btnToggleStudioPiano) return;
+
+  const shouldOpen = typeof forceOpen === "boolean" ? forceOpen : el.studioPianoPanel.hidden;
+  el.studioPianoPanel.hidden = !shouldOpen;
+  el.btnToggleStudioPiano.setAttribute("aria-expanded", String(shouldOpen));
+  el.btnToggleStudioPiano.textContent = shouldOpen ? "Masquer instruments & clavier" : "Instruments & clavier";
+
+  if (shouldOpen) {
+    MULTI_INSTRUMENTS.forEach((entry) => warmupMultiInstrumentSample(entry.id));
+    renderSkyPiano();
+    setStudioStatus(`Studio prêt : ${getCurrentMultiInstrument().label}. Enregistre quand tu veux.`);
+  }
 }
 
 function toggleSkyPiano(forceOpen) {
@@ -3510,28 +4269,39 @@ function triggerSkyPianoNote(button, source = "toucher", options = {}) {
   const instrument = getCurrentMultiInstrument();
   const noteLabel = button.dataset.noteLabel || "Note";
   const forceOneShot = Boolean(options.forceOneShot);
+  const shouldBroadcast = isMultiScreenActive();
 
   if (instrument.sustain && !forceOneShot) {
     const existingVoiceId = state.multi.localHeldNotes[noteId];
     if (existingVoiceId) return existingVoiceId;
 
     const voiceId = startHeldMultiNote(noteId, {
-      shouldBroadcast: true,
+      shouldBroadcast,
       instrumentId: instrument.id,
     });
 
     if (voiceId) {
       state.multi.localHeldNotes[noteId] = voiceId;
       button.dataset.activeVoiceId = voiceId;
+      if (isStudioScreenActive()) {
+        registerStudioHeldNoteStart(noteId, instrument.id, voiceId);
+      }
     }
 
+    if (isStudioScreenActive()) {
+      setStudioStatus(`${noteLabel} · ${instrument.label} en cours de capture.`);
+    }
     setSkyPianoStatus(`${noteLabel} · ${instrument.label.toLowerCase()} maintenu au ${source}.`);
     return voiceId;
   }
 
   flashSkyPianoButton(button);
+  if (isStudioScreenActive()) {
+    recordStudioOneShot(noteId, instrument.id);
+    setStudioStatus(`${noteLabel} joué au ${instrument.label.toLowerCase()} dans le studio.`);
+  }
   setSkyPianoStatus(`${noteLabel} · ${instrument.label.toLowerCase()} joué au ${source}.`);
-  playMultiMusicNote(noteId, true, instrument.id);
+  playMultiMusicNote(noteId, shouldBroadcast, instrument.id);
   return "";
 }
 
@@ -3547,7 +4317,10 @@ function releaseSkyPianoNote(button) {
     delete state.multi.localHeldNotes[noteId];
   }
 
-  stopHeldMultiNote(voiceId, true);
+  if (isStudioScreenActive()) {
+    registerStudioHeldNoteStop(voiceId, noteId);
+  }
+  stopHeldMultiNote(voiceId, isMultiScreenActive());
   setSkyPianoStatus(getMultiInstrumentReadyMessage());
 }
 
@@ -4286,10 +5059,10 @@ function playMultiMusicNote(noteId, shouldBroadcast = false, instrumentId = stat
   if (!note) return;
 
   const instrument = getCurrentMultiInstrument(instrumentId);
-  const isInMulti = isMultiScreenActive();
-  const toneContext = ensureSkyToneContext(shouldBroadcast || isInMulti);
+  const isInMusicWorkspace = isMusicWorkspaceActive();
+  const toneContext = ensureSkyToneContext(shouldBroadcast || isInMusicWorkspace);
   const canPlayHere = Boolean(
-    isInMulti
+    isInMusicWorkspace
     && toneContext
     && skyPianoMasterGain
     && !state.audio.mutedAll
@@ -4301,13 +5074,20 @@ function playMultiMusicNote(noteId, shouldBroadcast = false, instrumentId = stat
     createMultiInstrumentVoice(toneContext, note, instrument.id, { sustain: false });
   }
 
-  if (isInMulti) {
-    el.skyPianoGrid?.querySelectorAll("[data-note]").forEach((button) => {
-      if (button.dataset.note !== noteId) return;
-      flashSkyPianoButton(button);
+  if (isInMusicWorkspace) {
+    getMusicKeyboardGrids().forEach((grid) => {
+      grid.querySelectorAll("[data-note]").forEach((button) => {
+        if (button.dataset.note !== noteId) return;
+        flashSkyPianoButton(button);
+      });
     });
 
-    setSkyPianoStatus(`${note.label} · ${instrument.label.toLowerCase()} partagé dans le salon.`);
+    if (isStudioScreenActive()) {
+      setStudioStatus(`${note.label} · ${instrument.label.toLowerCase()} prêt dans le studio.`);
+      setSkyPianoStatus(`${note.label} · ${instrument.label.toLowerCase()} joué dans le studio.`);
+    } else {
+      setSkyPianoStatus(`${note.label} · ${instrument.label.toLowerCase()} partagé dans le salon.`);
+    }
   }
 
   if (shouldBroadcast) {
@@ -5083,6 +5863,189 @@ function setupMultiScreen() {
   });
 }
 
+function setupStudioScreen() {
+  const activateStudioAudio = () => {
+    ensureMultiToneContext(true);
+    ensureSkyToneContext(true);
+    MULTI_INSTRUMENTS.forEach((entry) => warmupMultiInstrumentSample(entry.id));
+  };
+
+  renderSkyPiano();
+  refreshStudioUI();
+  toggleStudioProject(false);
+  setStudioStatus("");
+
+  el.screenStudio?.addEventListener("pointerdown", activateStudioAudio, { passive: true });
+
+  el.btnOpenStudio?.addEventListener("click", (event) => {
+    event.preventDefault();
+    activateStudioAudio();
+    fadeTo(() => {
+      setActiveScreen("studio");
+    });
+  });
+
+  el.btnStudioBack?.addEventListener("click", (event) => {
+    event.preventDefault();
+    fadeTo(() => {
+      setActiveScreen("multi");
+      connectMultiRealtime(true);
+    });
+  });
+
+  el.btnToggleStudioPiano?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleStudioPiano();
+  });
+
+  const releaseStudioPointerNote = (event) => {
+    const button = event.target.closest(".sky-piano-key");
+    if (!button) return;
+    releaseSkyPianoNote(button);
+  };
+
+  el.studioPianoGrid?.addEventListener("pointerdown", (event) => {
+    const button = event.target.closest(".sky-piano-key");
+    if (!button) return;
+    event.preventDefault();
+    button.setPointerCapture?.(event.pointerId);
+    triggerSkyPianoNote(button, "studio");
+  });
+
+  el.studioPianoGrid?.addEventListener("pointerup", releaseStudioPointerNote);
+  el.studioPianoGrid?.addEventListener("pointercancel", releaseStudioPointerNote);
+
+  el.studioPianoGrid?.addEventListener("click", (event) => {
+    const button = event.target.closest(".sky-piano-key");
+    if (!button || event.detail > 0) return;
+    event.preventDefault();
+    triggerSkyPianoNote(button, "studio", { forceOneShot: true });
+    releaseSkyPianoNote(button);
+  });
+
+  el.btnStudioRecord?.addEventListener("click", (event) => {
+    event.preventDefault();
+    activateStudioAudio();
+    beginStudioRecording();
+  });
+
+  el.btnStudioStop?.addEventListener("click", (event) => {
+    event.preventDefault();
+    stopStudioRecording();
+  });
+
+  el.btnStudioPlay?.addEventListener("click", (event) => {
+    event.preventDefault();
+    activateStudioAudio();
+    playStudioComposition({ includePending: true });
+  });
+
+  el.btnStudioProject?.addEventListener("click", (event) => {
+    event.preventDefault();
+    toggleStudioProject();
+  });
+
+  el.btnStudioOverdub?.addEventListener("click", (event) => {
+    event.preventDefault();
+    activateStudioAudio();
+    beginStudioRecording({ overdub: true });
+  });
+
+  el.btnStudioSaveTake?.addEventListener("click", (event) => {
+    event.preventDefault();
+    saveStudioTake();
+  });
+
+  el.btnStudioContinueTake?.addEventListener("click", (event) => {
+    event.preventDefault();
+    activateStudioAudio();
+    beginStudioRecording({ append: true });
+  });
+
+  el.btnStudioClear?.addEventListener("click", (event) => {
+    event.preventDefault();
+    clearStudioProject();
+  });
+
+  el.studioLayerList?.addEventListener("click", (event) => {
+    const actionButton = event.target.closest("button[data-studio-action]");
+    const trackRow = event.target.closest("[data-layer-id]");
+
+    if (trackRow?.dataset.layerId && !actionButton) {
+      selectStudioLayer(trackRow.dataset.layerId);
+      return;
+    }
+
+    if (!actionButton) return;
+
+    event.preventDefault();
+    const layerId = String(actionButton.dataset.layerId || "");
+    selectStudioLayer(layerId);
+
+    if (actionButton.dataset.studioAction === "play-layer") {
+      activateStudioAudio();
+      playStudioComposition({ includePending: true, layerId });
+      return;
+    }
+
+    if (actionButton.dataset.studioAction === "toggle-mute") {
+      toggleStudioLayerMute(layerId);
+      return;
+    }
+
+    if (actionButton.dataset.studioAction === "edit-layer") {
+      editStudioLayer(layerId);
+      return;
+    }
+
+    if (actionButton.dataset.studioAction === "delete-layer") {
+      if (state.studio.pendingLayer?.id === layerId) {
+        state.studio.pendingLayer = null;
+      }
+      state.studio.layers = state.studio.layers.filter((layer) => layer.id !== layerId);
+      state.studio.mutedLayerIds = (state.studio.mutedLayerIds || []).filter((id) => id !== layerId);
+      if (state.studio.selectedLayerId === layerId) {
+        const lastLayer = state.studio.layers.length ? state.studio.layers[state.studio.layers.length - 1] : null;
+        state.studio.selectedLayerId = state.studio.pendingLayer?.id || lastLayer?.id || "";
+      }
+      setStudioStatus("Piste supprimée du studio.");
+      refreshStudioUI();
+    }
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (!el.screenStudio?.classList.contains("active")) return;
+    if (event.repeat || isTypingField(event.target)) return;
+
+    const binding = getSkyKeyboardBinding(event);
+    if (!binding) return;
+
+    if (el.studioPianoPanel?.hidden) {
+      toggleStudioPiano(true);
+    }
+
+    const button = el.studioPianoGrid?.querySelector(`[data-note="${binding.noteId}"]`);
+    if (!button) return;
+
+    event.preventDefault();
+    triggerSkyPianoNote(button, `clavier ${binding.keyLabel}`);
+  });
+
+  document.addEventListener("keyup", (event) => {
+    if (!el.screenStudio?.classList.contains("active")) return;
+    if (isTypingField(event.target)) return;
+
+    const binding = getSkyKeyboardBinding(event);
+    if (!binding) return;
+
+    const button = el.studioPianoGrid?.querySelector(`[data-note="${binding.noteId}"]`);
+    if (!button) return;
+
+    releaseSkyPianoNote(button);
+  });
+}
+
 function setupHome() {
   state.home.krillUnlocked = true;
   state.home.candlesUnlocked = true;
@@ -5135,6 +6098,7 @@ function setupHome() {
   setupPresence();
   setupMusicScreen();
   setupMultiScreen();
+  setupStudioScreen();
 
   document.querySelectorAll(".disabled-cta").forEach((btn) => {
     if (btn.id === "btn-start-krill" || btn.id === "btn-start-music") return;
@@ -5721,6 +6685,11 @@ function returnToMenu() {
   el.playlistModal.hidden = true;
   el.playlistAddModal.hidden = true;
   el.soundPanel.hidden = true;
+  stopStudioPlayback();
+  if (state.studio.isRecording) {
+    stopStudioRecording();
+  }
+  toggleStudioPiano(false);
   closeMultiChatDrawer();
   if (el.onlinePanel) {
     el.onlinePanel.hidden = true;
