@@ -2370,6 +2370,24 @@ body.chaos-mode .apology-btn {
   }
 }
 
+@media (max-width: 900px) and (orientation: landscape) {
+  body.sky-piano-open #sky-piano-panel .sky-piano-grid {
+    grid-template-columns: repeat(15, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  body.sky-piano-open #sky-piano-panel .sky-piano-key,
+  body.sky-piano-open #sky-piano-panel .multi-note-btn {
+    min-height: clamp(54px, 22vh, 82px);
+    aspect-ratio: 1 / 1;
+  }
+
+  body.sky-piano-open #sky-piano-panel .sky-piano-glyph {
+    width: clamp(30px, 5vw, 46px);
+    height: clamp(30px, 5vw, 46px);
+  }
+}
+
   .sound-panel {
     text-align: left;
   }
