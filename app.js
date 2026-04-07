@@ -3497,7 +3497,12 @@ function createMultiInstrumentVoice(toneContext, note, instrumentId = state.audi
 }
 
 function startHeldMultiNote(noteId, options = {}) {
-  const { shouldBroadcast = false, instrumentId = state.audio.multiInstrument, voiceId = "" } = options;
+  const {
+    shouldBroadcast = false,
+    instrumentId = state.audio.multiInstrument,
+    voiceId = "",
+    isRemote = false,
+  } = options;
   const note = MULTI_MUSIC_NOTES.find((entry) => entry.id === noteId);
   if (!note) return "";
 
@@ -3525,10 +3530,17 @@ function startHeldMultiNote(noteId, options = {}) {
   if (canPlayHere) {
     const voice = createMultiInstrumentVoice(toneContext, note, instrument.id, { sustain: true });
     if (voice) {
+      const fallbackHoldMs = isRemote
+        ? (instrument.id === "violin"
+            ? 1700
+            : (instrument.id === "panflute" || instrument.id === "ocarina")
+              ? 1350
+              : 1100)
+        : 12000;
       const safetyTimer = !shouldBroadcast
         ? window.setTimeout(() => {
             stopHeldMultiNote(actualVoiceId, false);
-          }, 12000)
+          }, fallbackHoldMs)
         : 0;
 
       state.multi.activeMusicVoices[actualVoiceId] = {
@@ -5184,6 +5196,7 @@ function applyMultiRealtimeEvent(payload) {
       shouldBroadcast: false,
       instrumentId: payload.instrument || "violin",
       voiceId: payload.voiceId || payload.id,
+      isRemote: true,
     });
     return;
   }
