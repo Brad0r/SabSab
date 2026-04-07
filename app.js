@@ -2980,11 +2980,11 @@ function createMultiInstrumentVoice(toneContext, note, instrumentId = state.audi
         filter.frequency.setValueAtTime(3000, now);
         filter.frequency.exponentialRampToValueAtTime(2350, now + 0.9);
         filter.Q.value = 1.2;
-        addAmbienceSend(0.5, 0.072, 0.18);
+        addAmbienceSend(0.56, 0.082, 0.2);
         voiceGain.gain.setValueAtTime(0.0001, now);
         voiceGain.gain.exponentialRampToValueAtTime(1.02, now + 0.018);
         voiceGain.gain.linearRampToValueAtTime(0.94, now + 0.075);
-        releaseSeconds = 0.55;
+        releaseSeconds = 0.72;
         break;
       case "panflute":
         filter.type = "bandpass";
@@ -3098,13 +3098,14 @@ function createMultiInstrumentVoice(toneContext, note, instrumentId = state.audi
         filter.Q.value = 2.1;
         addPlaybackVibrato(source.playbackRate, 5.1, 0.007);
         addBreathNoise(0.0045, Math.max(900, note.freq * 3.1));
+        addAmbienceSend(0.12, 0.065, 0.08);
         voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.04, toneLevel * 1.12), now + 0.018);
         voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.029, toneLevel * 0.94), now + 0.082);
         if (!options.sustain) {
-          voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.9);
+          voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + 2.12);
         }
-        releaseSeconds = 0.36;
-        autoStopAfter = options.sustain ? 0 : 1.92;
+        releaseSeconds = 0.5;
+        autoStopAfter = options.sustain ? 0 : 2.16;
         break;
       case "panflute":
         filter.type = "bandpass";
@@ -3197,17 +3198,17 @@ function createMultiInstrumentVoice(toneContext, note, instrumentId = state.audi
       addOscillator("sine", note.freq * 2, 0.08);
       addBreathNoise(0.006, Math.max(1000, note.freq * 3.6));
       addVibrato([bow, edge], 5.15, Math.max(2.2, note.freq * 0.0048));
-      addAmbienceSend(0.48, 0.07, 0.16);
+      addAmbienceSend(0.52, 0.078, 0.18);
       filter.frequency.setValueAtTime(3000, now);
       filter.frequency.exponentialRampToValueAtTime(2250, now + 0.7);
       filter.Q.value = 1.45;
       voiceGain.gain.linearRampToValueAtTime(Math.max(0.04, toneLevel * 1.12), now + 0.02);
       voiceGain.gain.linearRampToValueAtTime(Math.max(0.03, toneLevel * 0.94), now + 0.075);
       if (!options.sustain) {
-        voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + 2.05);
+        voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + 2.22);
       }
-      releaseSeconds = 0.5;
-      autoStopAfter = options.sustain ? 0 : 2.0;
+      releaseSeconds = 0.62;
+      autoStopAfter = options.sustain ? 0 : 2.16;
       break;
     }
     case "panflute": {
@@ -3410,7 +3411,7 @@ function stopHeldMultiNote(voiceId, shouldBroadcast = false) {
 
   try {
     const releaseTime = activeVoice?.instrumentId === "violin"
-      ? 0.28
+      ? 0.42
       : (activeVoice?.instrumentId === "panflute" || activeVoice?.instrumentId === "ocarina")
         ? 0.34
         : 0.18;

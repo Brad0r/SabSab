@@ -805,6 +805,10 @@ body[data-theme="dark"] .playlist-card.active {
   box-shadow: 0 12px 24px rgba(44, 17, 40, 0.12);
 }
 
+.multi-instrument-menu[hidden] {
+  display: none !important;
+}
+
 .multi-instrument-btn {
   display: flex;
   align-items: center;
