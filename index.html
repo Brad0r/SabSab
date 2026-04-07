@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Noto+Sans+JP:wght@400;700;900&family=Zen+Kurenaido&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260407r" />
+  <link rel="stylesheet" href="styles.css?v=20260408a" />
 </head>
 <body>
   <div id="screen-home" class="screen active">
@@ -391,13 +391,7 @@
         </div>
 
         <section id="studio-piano-panel" class="multi-sky-panel studio-sky-panel" hidden>
-          <div class="studio-instrument-row" aria-label="Choix des instruments du studio">
-            <button class="multi-instrument-btn active" type="button" data-multi-instrument="piano" aria-pressed="true">🎹 Piano</button>
-            <button class="multi-instrument-btn" type="button" data-multi-instrument="violin" aria-pressed="false">🎻 Violon</button>
-            <button class="multi-instrument-btn" type="button" data-multi-instrument="panflute" aria-pressed="false">🪈 Flûte de pan</button>
-            <button class="multi-instrument-btn" type="button" data-multi-instrument="ocarina" aria-pressed="false">🎶 Ocarina</button>
-            <button class="multi-instrument-btn" type="button" data-multi-instrument="celestialguitar" aria-pressed="false">🎸 Guitarre céleste</button>
-          </div>
+          <div id="studio-instrument-row" class="studio-instrument-row" aria-label="Choix des instruments du studio"></div>
           <div id="studio-piano-grid" class="multi-music-grid sky-piano-grid" aria-label="Clavier du studio"></div>
         </section>
       </section>
@@ -539,6 +533,6 @@
       return "";
     })();
   </script>
-  <script src="app.js?v=20260407r"></script>
+  <script src="app.js?v=20260408a"></script>
 </body>
 </html>

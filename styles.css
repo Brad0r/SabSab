@@ -751,7 +751,7 @@ body[data-theme="dark"] .playlist-card.active {
   position: relative;
   display: grid;
   gap: 8px;
-  width: min(280px, 100%);
+  width: min(420px, 100%);
 }
 
 .multi-instrument-trigger {
@@ -802,8 +802,11 @@ body[data-theme="dark"] .playlist-card.active {
 
 .multi-instrument-menu {
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 8px;
   padding: 8px;
+  max-height: min(52vh, 420px);
+  overflow-y: auto;
   border: 2px solid rgba(44, 17, 40, 0.14);
   border-radius: 16px;
   background: rgba(255, 252, 254, 0.96);

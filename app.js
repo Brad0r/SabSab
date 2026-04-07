@@ -328,6 +328,7 @@ const el = {
   skyPianoStatus: document.getElementById("sky-piano-status"),
   btnToggleStudioPiano: document.getElementById("btn-toggle-studio-piano"),
   studioPianoPanel: document.getElementById("studio-piano-panel"),
+  studioInstrumentRow: document.getElementById("studio-instrument-row"),
   studioPianoGrid: document.getElementById("studio-piano-grid"),
   studioStatus: document.getElementById("studio-status"),
   studioArrangement: document.getElementById("studio-arrangement"),
@@ -430,6 +431,7 @@ let skyToneContext = null;
 let skyPianoMasterGain = null;
 let skyPianoWetGain = null;
 let skyPianoConvolver = null;
+let skyPianoCompressor = null;
 let musicProgressDragging = false;
 let lastGoodIndex = -1;
 let lastBadIndex = -1;
@@ -472,12 +474,178 @@ const MULTI_MUSIC_NOTES = [
   { id: "c5", name: "Do", label: "Do5", key: "!", aliases: ["!"], freq: 523.25 },
 ];
 
+const SKY_NIGHTLY_AUDIO_BASE = "https://cdn.jsdelivr.net/gh/Specy/genshin-music@main/public/assets/audio/sky";
+const SKY_NIGHTLY_NOTE_LAYOUTS = {
+  defaultSky: MULTI_MUSIC_NOTES.map((entry) => entry.id),
+  defaultDrums: ["c3", "d3", "e3", "f3", "g3", "a3", "b3", "c4"],
+  skyBell: ["c3", "d3", "g3", "a3", "c4", "d4", "g4", "a4"],
+  skyHandpan: ["d3", "a3", "c4", "d4", "f4", "g4", "a4", "c5"],
+  skySFX6: ["c3", "d3", "e3", "a3", "b3", "c4"],
+  skySFX14: ["c3", "d3", "e3", "f3", "g3", "a3", "b3", "c4", "d4", "e4", "f4", "g4", "a4", "b4"],
+};
+
+const SKY_NIGHTLY_INSTRUMENTS = [
+  { id: "sky-piano", skyName: "Piano", icon: "🎹", label: "Piano", hint: "preset Nightly officiel", sustain: true, noteLayout: "defaultSky", family: "piano" },
+  { id: "sky-grandpiano", skyName: "GrandPiano", icon: "🎹", label: "Grand Piano", hint: "piano ample du Nightly", sustain: true, noteLayout: "defaultSky", family: "piano" },
+  { id: "sky-contrabass", skyName: "Contrabass", icon: "🪕", label: "Contrebasse", hint: "basse profonde du Nightly", sustain: true, noteLayout: "defaultSky", family: "guitar" },
+  { id: "sky-guitar", skyName: "Guitar", icon: "🎸", label: "Guitare", hint: "cordes acoustiques officielles", sustain: true, noteLayout: "defaultSky", family: "guitar" },
+  { id: "sky-lightguitar", skyName: "LightGuitar", icon: "✨🎸", label: "Guitare lumineuse", hint: "version claire Nightly", sustain: true, noteLayout: "defaultSky", family: "guitar" },
+  { id: "sky-harp", skyName: "Harp", icon: "🪉", label: "Harpe", hint: "harpe céleste Nightly", sustain: true, noteLayout: "defaultSky", family: "strings" },
+  { id: "sky-horn", skyName: "Horn", icon: "📯", label: "Cor", hint: "souffle grave Nightly", sustain: true, noteLayout: "defaultSky", family: "brass" },
+  { id: "sky-trumpet", skyName: "Trumpet", icon: "🎺", label: "Trompette", hint: "cuivres du Nightly", sustain: true, noteLayout: "defaultSky", family: "brass" },
+  { id: "sky-pipa", skyName: "Pipa", icon: "🪕", label: "Pipa", hint: "cordes pincées Nightly", sustain: true, noteLayout: "defaultSky", family: "reed" },
+  { id: "sky-winterpiano", skyName: "WinterPiano", icon: "❄️🎹", label: "Piano d'hiver", hint: "piano hivernal du Nightly", sustain: true, noteLayout: "defaultSky", family: "piano" },
+  { id: "sky-xylophone", skyName: "Xylophone", icon: "🎼", label: "Xylophone", hint: "percussions claires Nightly", sustain: true, noteLayout: "defaultSky", family: "chromatic-percussion" },
+  { id: "sky-flute", skyName: "Flute", icon: "🪈", label: "Flûte", hint: "flûte officielle Nightly", sustain: true, noteLayout: "defaultSky", family: "pipe" },
+  { id: "sky-panflute", skyName: "Panflute", icon: "🪈", label: "Flûte de pan", hint: "panflûte Nightly", sustain: true, noteLayout: "defaultSky", family: "pipe" },
+  { id: "sky-ocarina", skyName: "Ocarina", icon: "🎶", label: "Ocarina", hint: "ocarina Nightly", sustain: true, noteLayout: "defaultSky", family: "pipe" },
+  { id: "sky-mantaocarina", skyName: "MantaOcarina", icon: "🪽", label: "Ocarina manta", hint: "ocarina manta officielle", sustain: true, noteLayout: "defaultSky", family: "pipe" },
+  { id: "sky-aurora", skyName: "Aurora", icon: "🌌", label: "Aurora", hint: "voix Aurora du Nightly", sustain: true, noteLayout: "defaultSky", family: "vocal" },
+  { id: "sky-aurora-short", skyName: "Aurora_Short", icon: "✨", label: "Aurora courte", hint: "version courte Aurora", sustain: true, noteLayout: "defaultSky", family: "vocal" },
+  { id: "sky-sfx-birdcall", skyName: "SFX_BirdCall", icon: "🐦", label: "Appel d'oiseau", hint: "appel animalier du Nightly", sustain: false, noteLayout: "skySFX14", family: "percussive" },
+  { id: "sky-sfx-crabcall", skyName: "SFX_CrabCall", icon: "🦀", label: "Appel de crabe", hint: "appel animalier du Nightly", sustain: false, noteLayout: "skySFX14", family: "percussive" },
+  { id: "sky-sfx-fishcall", skyName: "SFX_FishCall", icon: "🐟", label: "Appel de poisson", hint: "appel animalier du Nightly", sustain: false, noteLayout: "skySFX14", family: "percussive" },
+  { id: "sky-sfx-spiritmantacall", skyName: "SFX_SpiritMantaCall", icon: "🪽", label: "Appel manta esprit", hint: "appel spirituel Nightly", sustain: false, noteLayout: "skySFX14", family: "percussive" },
+  { id: "sky-sfx-jellycall", skyName: "SFX_JellyCall", icon: "🪼", label: "Appel de méduse", hint: "appel aquatique Nightly", sustain: false, noteLayout: "skySFX14", family: "percussive" },
+  { id: "sky-sfx-mantacall", skyName: "SFX_MantaCall", icon: "🌊", label: "Appel de manta", hint: "appel aérien Nightly", sustain: false, noteLayout: "skySFX14", family: "percussive" },
+  { id: "sky-sfx-mothcall", skyName: "SFX_MothCall", icon: "🦋", label: "Appel de papillon", hint: "appel léger Nightly", sustain: false, noteLayout: "skySFX14", family: "percussive" },
+];
+
+function isSkyNightlyInstrument(instrumentId = "") {
+  return String(instrumentId || "").startsWith("sky-");
+}
+
+function getSkyNightlyInstrumentProfile(instrument = {}) {
+  const family = String(instrument.family || "").trim().toLowerCase();
+  const noteLayout = String(instrument.noteLayout || "defaultSky");
+  const instrumentId = String(instrument.id || "");
+  const isPercussiveLayout = ["defaultDrums", "skyBell", "skyHandpan", "skySFX6", "skySFX14"].includes(noteLayout);
+
+  if (instrumentId === "sky-aurora" || instrumentId === "sky-aurora-short") {
+    return {
+      filterType: "lowpass",
+      filterFrequency: 4600,
+      filterQ: 0.62,
+      attackSeconds: 0.024,
+      peakGain: Math.max(0.09, state.audio.musicVolume * 0.2),
+      sustainGain: Math.max(0.05, state.audio.musicVolume * 0.12),
+      releaseSeconds: 1.08,
+      autoStopAfter: 3.2,
+      ambienceAmount: 0.56,
+      ambienceDelay: 0.065,
+      ambienceFeedback: 0.16,
+    };
+  }
+
+  if (family === "vocal") {
+    return {
+      filterType: "lowpass",
+      filterFrequency: 4300,
+      filterQ: 0.68,
+      attackSeconds: 0.02,
+      peakGain: Math.max(0.082, state.audio.musicVolume * 0.17),
+      sustainGain: Math.max(0.044, state.audio.musicVolume * 0.1),
+      releaseSeconds: 0.82,
+      autoStopAfter: 2.8,
+      ambienceAmount: 0.34,
+      ambienceDelay: 0.052,
+      ambienceFeedback: 0.09,
+    };
+  }
+
+  if (family === "pipe" || family === "brass") {
+    return {
+      filterType: "lowpass",
+      filterFrequency: 5200,
+      filterQ: 0.85,
+      attackSeconds: 0.012,
+      peakGain: Math.max(0.08, state.audio.musicVolume * 0.16),
+      sustainGain: Math.max(0.042, state.audio.musicVolume * 0.094),
+      releaseSeconds: 1.05,
+      autoStopAfter: 3.05,
+      ambienceAmount: 0.24,
+      ambienceDelay: 0.048,
+      ambienceFeedback: 0.085,
+    };
+  }
+
+  if (family === "percussive" || family === "synth" || isPercussiveLayout) {
+    return {
+      filterType: "lowpass",
+      filterFrequency: 7600,
+      filterQ: 0.42,
+      attackSeconds: 0.006,
+      peakGain: Math.max(0.07, state.audio.musicVolume * 0.15),
+      sustainGain: Math.max(0.022, state.audio.musicVolume * 0.05),
+      releaseSeconds: 0.26,
+      autoStopAfter: 1.2,
+      ambienceAmount: 0.02,
+      ambienceDelay: 0.02,
+      ambienceFeedback: 0.02,
+    };
+  }
+
+  if (family === "piano" || family === "chromatic-percussion") {
+    return {
+      filterType: "lowpass",
+      filterFrequency: 6400,
+      filterQ: 0.65,
+      attackSeconds: 0.008,
+      peakGain: Math.max(0.075, state.audio.musicVolume * 0.155),
+      sustainGain: Math.max(0.032, state.audio.musicVolume * 0.072),
+      releaseSeconds: 0.9,
+      autoStopAfter: 2.7,
+      ambienceAmount: 0.15,
+      ambienceDelay: 0.036,
+      ambienceFeedback: 0.07,
+    };
+  }
+
+  return {
+    filterType: "lowpass",
+    filterFrequency: 5600,
+    filterQ: 0.75,
+    attackSeconds: 0.01,
+    peakGain: Math.max(0.078, state.audio.musicVolume * 0.16),
+    sustainGain: Math.max(0.034, state.audio.musicVolume * 0.078),
+    releaseSeconds: 1.15,
+    autoStopAfter: 2.9,
+    ambienceAmount: 0.24,
+    ambienceDelay: 0.045,
+    ambienceFeedback: 0.1,
+  };
+}
+
+function createIndexedSampleConfig(basePath, noteIds, options = {}) {
+  const notes = {};
+  noteIds.forEach((noteId, index) => {
+    const noteData = MULTI_MUSIC_NOTES.find((entry) => entry.id === noteId);
+    if (!noteData) return;
+    notes[noteId] = {
+      path: `${basePath}/${index}.mp3`,
+      rootFreq: noteData.freq,
+      displayName: noteData.name,
+      displayLabel: noteData.label,
+    };
+  });
+
+  const fallbackNoteId = noteIds.find((noteId) => notes[noteId]) || "c4";
+  const fallbackNote = MULTI_MUSIC_NOTES.find((entry) => entry.id === fallbackNoteId) || MULTI_MUSIC_NOTES[7];
+
+  return {
+    path: `${basePath}/0.mp3`,
+    rootFreq: fallbackNote?.freq || 261.63,
+    loop: Boolean(options.loop),
+    loopStart: options.loopStart,
+    loopEnd: options.loopEnd,
+    notes,
+  };
+}
+
 const MULTI_INSTRUMENTS = [
-  { id: "piano", icon: "🎹", label: "Piano", hint: "sample chaleureux et naturel", sustain: false },
-  { id: "violin", icon: "🎻", label: "Violon", hint: "sample soutenu, maintiens la note pour la prolonger", sustain: true },
-  { id: "panflute", icon: "🪈", label: "Flûte de pan", hint: "souffle doux, maintiens la note pour la prolonger", sustain: true },
-  { id: "ocarina", icon: "🎶", label: "Ocarina", hint: "son rond et aérien, maintiens la note pour la prolonger", sustain: true },
-  { id: "celestialguitar", icon: "🎸", label: "Guitarre céleste", hint: "cordes brillantes extraites de ta vidéo", sustain: false },
+  { id: "violin", icon: "🎻", label: "Violon", hint: "violon orchestral réaliste, maintiens la note pour la prolonger", sustain: true },
+  { id: "cello", icon: "🎻", label: "Violoncelle", hint: "violoncelle profond et réaliste, maintiens la note pour la prolonger", sustain: true },
+  ...SKY_NIGHTLY_INSTRUMENTS,
 ];
 
 const MULTI_INSTRUMENT_SAMPLE_CONFIG = {
@@ -535,6 +703,20 @@ const MULTI_INSTRUMENT_SAMPLE_CONFIG = {
       c5: { path: "assets/instruments/guitarre-celeste-c5.wav", rootFreq: 523.25, displayName: "Si", displayLabel: "Si5" },
     },
   },
+  // Sky Music Nightly catalog from Specy/genshin-music (MIT).
+  ...Object.fromEntries(
+    SKY_NIGHTLY_INSTRUMENTS.map((entry) => [
+      entry.id,
+      createIndexedSampleConfig(
+        `${SKY_NIGHTLY_AUDIO_BASE}/${entry.skyName}`,
+        SKY_NIGHTLY_NOTE_LAYOUTS[entry.noteLayout] || SKY_NIGHTLY_NOTE_LAYOUTS.defaultSky,
+        {
+          loop: Boolean(entry.sustain),
+          loopStart: entry.family === "vocal" ? 0.18 : entry.family === "pipe" || entry.family === "brass" ? 0.14 : 0.12,
+        },
+      ),
+    ]),
+  ),
 };
 
 const multiInstrumentSampleCache = new Map();
@@ -544,8 +726,12 @@ const MULTI_REAL_INSTRUMENT_PRESETS = {
     variable: "_tone_0000_JCLive_sf2_file",
   },
   violin: {
-    url: "https://surikov.github.io/webaudiofontdata/sound/0400_GeneralUserGS_sf2_file.js",
-    variable: "_tone_0400_GeneralUserGS_sf2_file",
+    url: "https://surikov.github.io/webaudiofontdata/sound/0400_FluidR3_GM_sf2_file.js",
+    variable: "_tone_0400_FluidR3_GM_sf2_file",
+  },
+  cello: {
+    url: "https://surikov.github.io/webaudiofontdata/sound/0420_FluidR3_GM_sf2_file.js",
+    variable: "_tone_0420_FluidR3_GM_sf2_file",
   },
   ocarina: {
     url: "https://surikov.github.io/webaudiofontdata/sound/0790_FluidR3_GM_sf2_file.js",
@@ -876,7 +1062,7 @@ const state = {
     currentTrack: DEFAULT_TRACK,
     activeQueue: "library",
     playerMode: PLAYER_MODES.repeatAll,
-    multiInstrument: "piano",
+    multiInstrument: "sky-piano",
     skyKey: "C",
     skyPianoOpen: false,
     playlists: readSavedPlaylists(),
@@ -1788,7 +1974,7 @@ function toggleMuteAll(forceValue) {
   if (skyPianoMasterGain && skyToneContext) {
     const nextGain = state.audio.mutedAll || !state.audio.musicEnabled
       ? 0.0001
-      : Math.max(0.04, state.audio.musicVolume * 0.3);
+      : Math.max(0.24, state.audio.musicVolume * 2.8);
     skyPianoMasterGain.gain.setValueAtTime(nextGain, skyToneContext.currentTime);
   }
 
@@ -2587,16 +2773,19 @@ function getSkyPianoNoteData(noteIndex) {
 }
 
 function buildSkyImpulseBuffer(audioContext) {
-  const duration = 1.8;
-  const decay = 2.2;
+  const duration = 1.6;
+  const decay = 2.8;
   const length = Math.floor(audioContext.sampleRate * duration);
   const impulse = audioContext.createBuffer(2, length, audioContext.sampleRate);
 
   for (let channel = 0; channel < impulse.numberOfChannels; channel += 1) {
     const channelData = impulse.getChannelData(channel);
+    let smooth = 0;
     for (let i = 0; i < length; i += 1) {
       const progress = i / length;
-      channelData[i] = (Math.random() * 2 - 1) * ((1 - progress) ** decay);
+      const white = Math.random() * 2 - 1;
+      smooth = (smooth * 0.86) + (white * 0.14);
+      channelData[i] = smooth * ((1 - progress) ** decay) * 0.38;
     }
   }
 
@@ -2611,18 +2800,27 @@ function ensureSkyToneContext(tryResume = false) {
       skyPianoMasterGain = skyToneContext.createGain();
       skyPianoWetGain = skyToneContext.createGain();
       skyPianoConvolver = skyToneContext.createConvolver();
+      skyPianoCompressor = skyToneContext.createDynamicsCompressor();
       skyPianoConvolver.buffer = buildSkyImpulseBuffer(skyToneContext);
+      skyPianoConvolver.normalize = true;
 
       const dryGain = skyToneContext.createGain();
-      dryGain.gain.value = 0.84;
-      skyPianoWetGain.gain.value = 0.24;
-      skyPianoMasterGain.gain.value = Math.max(0.04, state.audio.musicVolume * 0.3);
+      dryGain.gain.value = 0.98;
+      skyPianoWetGain.gain.value = 0.34;
+      skyPianoMasterGain.gain.value = Math.max(0.24, state.audio.musicVolume * 2.8);
+
+      skyPianoCompressor.threshold.setValueAtTime(-12, skyToneContext.currentTime);
+      skyPianoCompressor.knee.setValueAtTime(10, skyToneContext.currentTime);
+      skyPianoCompressor.ratio.setValueAtTime(1.8, skyToneContext.currentTime);
+      skyPianoCompressor.attack.setValueAtTime(0.012, skyToneContext.currentTime);
+      skyPianoCompressor.release.setValueAtTime(0.18, skyToneContext.currentTime);
 
       skyPianoMasterGain.connect(dryGain);
       skyPianoMasterGain.connect(skyPianoConvolver);
       skyPianoConvolver.connect(skyPianoWetGain);
-      dryGain.connect(skyToneContext.destination);
-      skyPianoWetGain.connect(skyToneContext.destination);
+      dryGain.connect(skyPianoCompressor);
+      skyPianoWetGain.connect(skyPianoCompressor);
+      skyPianoCompressor.connect(skyToneContext.destination);
     }
   }
 
@@ -2633,7 +2831,7 @@ function ensureSkyToneContext(tryResume = false) {
   if (skyPianoMasterGain && skyToneContext) {
     const nextGain = state.audio.mutedAll || !state.audio.musicEnabled
       ? 0.0001
-      : Math.max(0.04, state.audio.musicVolume * 0.3);
+      : Math.max(0.24, state.audio.musicVolume * 2.8);
     skyPianoMasterGain.gain.setValueAtTime(nextGain, skyToneContext.currentTime);
   }
 
@@ -2698,6 +2896,27 @@ function toggleMultiInstrumentMenu(forceOpen) {
   el.multiInstrumentMenu.hidden = !shouldOpen;
   el.multiInstrumentPicker?.classList.toggle("is-open", shouldOpen);
   el.btnToggleMultiInstrumentMenu.setAttribute("aria-expanded", String(shouldOpen));
+}
+
+function renderMultiInstrumentMenu() {
+  const targets = [el.multiInstrumentMenu, el.studioInstrumentRow].filter(Boolean);
+  if (!targets.length) return;
+
+  targets.forEach((container) => {
+    container.innerHTML = "";
+    MULTI_INSTRUMENTS.forEach((entry) => {
+      const button = document.createElement("button");
+      const isActive = entry.id === state.audio.multiInstrument;
+      button.className = `multi-instrument-btn${isActive ? " active" : ""}`;
+      button.type = "button";
+      button.dataset.multiInstrument = entry.id;
+      button.setAttribute("aria-pressed", String(isActive));
+      button.textContent = `${entry.icon ? `${entry.icon} ` : ""}${entry.label}`;
+      container.appendChild(button);
+    });
+  });
+
+  el.multiInstrumentButtons = Array.from(document.querySelectorAll("[data-multi-instrument]"));
 }
 
 function updateMultiInstrumentButtons() {
@@ -2926,9 +3145,29 @@ function buildMultiNoiseBuffer(audioContext, duration = 1.8) {
 }
 
 function getMultiInstrumentMixGain(instrumentId = "") {
-  switch (String(instrumentId || "").trim()) {
+  const safeInstrumentId = String(instrumentId || "").trim();
+
+  if (isSkyNightlyInstrument(safeInstrumentId)) {
+    if (/sky-sfx-|sky-drum|sky-dundun|sky-handpan/.test(safeInstrumentId)) {
+      return 1.45;
+    }
+    if (/sky-bells|sky-kalimba|sky-xylophone/.test(safeInstrumentId)) {
+      return 1.35;
+    }
+    if (/sky-aurora/.test(safeInstrumentId)) {
+      return 1.7;
+    }
+    if (/sky-flute|sky-panflute|sky-ocarina|sky-mantaocarina|sky-horn|sky-trumpet/.test(safeInstrumentId)) {
+      return 1.55;
+    }
+    return 1.48;
+  }
+
+  switch (safeInstrumentId) {
+    case "cello":
+      return 0.46;
     case "violin":
-      return 1;
+      return 0.4;
     case "panflute":
       return 3.1;
     case "ocarina":
@@ -2939,6 +3178,18 @@ function getMultiInstrumentMixGain(instrumentId = "") {
     default:
       return 1;
   }
+}
+
+function holdAudioParamValue(param, time, fallbackValue = 0.05) {
+  if (!param) return;
+
+  if (typeof param.cancelAndHoldAtTime === "function") {
+    param.cancelAndHoldAtTime(time);
+    return;
+  }
+
+  param.cancelScheduledValues(time);
+  param.setValueAtTime(Math.max(Number(param.value || 0), fallbackValue), time);
 }
 
 function createMultiInstrumentVoice(toneContext, note, instrumentId = state.audio.multiInstrument, options = {}) {
@@ -2955,7 +3206,7 @@ function createMultiInstrumentVoice(toneContext, note, instrumentId = state.audi
   const voiceGain = toneContext.createGain();
   const oscillators = [];
   const extraSources = [];
-  const toneLevel = Math.max(0.02, state.audio.musicVolume * 0.13);
+  const toneLevel = Math.max(0.3, state.audio.musicVolume * 2.4);
   const instrumentMixGain = getMultiInstrumentMixGain(instrument.id);
 
   mixer.gain.setValueAtTime(instrumentMixGain, now);
@@ -3085,6 +3336,7 @@ function createMultiInstrumentVoice(toneContext, note, instrumentId = state.audi
 
   let releaseSeconds = 0.45;
   let autoStopAfter = 1.35;
+  let releaseHoldLevel = 0.08;
 
   filter.type = "lowpass";
   filter.frequency.setValueAtTime(3200, now);
@@ -3098,15 +3350,19 @@ function createMultiInstrumentVoice(toneContext, note, instrumentId = state.audi
   if (realPreset && multiWebAudioFontPlayer) {
     const midiPitch = frequencyToMidiPitch(note.freq);
     const duration = options.sustain
-      ? 8
-      : (instrument.id === "piano" ? 2.8 : instrument.id === "ocarina" ? 2.45 : 3.4);
+      ? (instrument.id === "cello" ? 10 : 8.5)
+      : (instrument.id === "piano" ? 2.8 : instrument.id === "ocarina" ? 2.45 : instrument.id === "cello" ? 5.2 : instrument.id === "violin" ? 4.2 : 3.4);
     const volume = instrument.id === "piano"
       ? Math.min(0.72, 0.32 + (state.audio.musicVolume * 0.44))
-      : instrument.id === "ocarina"
-        ? Math.min(0.7, 0.3 + (state.audio.musicVolume * 0.4))
-        : instrument.id === "panflute"
-          ? Math.min(0.74, 0.3 + (state.audio.musicVolume * 0.42))
-          : Math.min(0.62, 0.26 + (state.audio.musicVolume * 0.38));
+      : instrument.id === "cello"
+        ? Math.min(0.28, 0.1 + (state.audio.musicVolume * 0.12))
+        : instrument.id === "violin"
+          ? Math.min(0.24, 0.09 + (state.audio.musicVolume * 0.1))
+          : instrument.id === "ocarina"
+            ? Math.min(0.7, 0.3 + (state.audio.musicVolume * 0.4))
+            : instrument.id === "panflute"
+              ? Math.min(0.74, 0.3 + (state.audio.musicVolume * 0.42))
+              : Math.min(0.62, 0.26 + (state.audio.musicVolume * 0.38));
 
     switch (instrument.id) {
       case "piano":
@@ -3116,18 +3372,32 @@ function createMultiInstrumentVoice(toneContext, note, instrumentId = state.audi
         filter.Q.value = 1.3;
         voiceGain.gain.setValueAtTime(0.0001, now);
         voiceGain.gain.exponentialRampToValueAtTime(1, now + 0.01);
+        releaseHoldLevel = 0.42;
         releaseSeconds = 0.75;
         break;
       case "violin":
         filter.type = "lowpass";
-        filter.frequency.setValueAtTime(3000, now);
-        filter.frequency.exponentialRampToValueAtTime(2350, now + 0.9);
-        filter.Q.value = 1.2;
-        addAmbienceSend(0.6, 0.086, 0.22);
+        filter.frequency.setValueAtTime(2920, now);
+        filter.frequency.exponentialRampToValueAtTime(2220, now + 1.05);
+        filter.Q.value = 1.08;
+        addAmbienceSend(0.54, 0.096, 0.2);
         voiceGain.gain.setValueAtTime(0.0001, now);
-        voiceGain.gain.exponentialRampToValueAtTime(1.02, now + 0.018);
-        voiceGain.gain.linearRampToValueAtTime(0.97, now + 0.11);
-        releaseSeconds = options.sustain ? 0.88 : 0.76;
+        voiceGain.gain.linearRampToValueAtTime(0.42, now + 0.055);
+        voiceGain.gain.linearRampToValueAtTime(0.34, now + 0.18);
+        releaseHoldLevel = 0.34;
+        releaseSeconds = options.sustain ? 1.72 : 1.24;
+        break;
+      case "cello":
+        filter.type = "lowpass";
+        filter.frequency.setValueAtTime(2320, now);
+        filter.frequency.exponentialRampToValueAtTime(1580, now + 1.28);
+        filter.Q.value = 0.98;
+        addAmbienceSend(0.52, 0.108, 0.18);
+        voiceGain.gain.setValueAtTime(0.0001, now);
+        voiceGain.gain.linearRampToValueAtTime(0.46, now + 0.07);
+        voiceGain.gain.linearRampToValueAtTime(options.sustain ? 0.38 : 0.32, now + 0.24);
+        releaseHoldLevel = options.sustain ? 0.38 : 0.32;
+        releaseSeconds = options.sustain ? 1.95 : 1.34;
         break;
       case "panflute":
         filter.type = "bandpass";
@@ -3179,15 +3449,19 @@ function createMultiInstrumentVoice(toneContext, note, instrumentId = state.audi
         const safeRelease = Math.max(0.05, Number(overrideRelease || releaseSeconds));
 
         try {
-          voiceGain.gain.cancelScheduledValues(stopAt);
-          voiceGain.gain.setValueAtTime(Math.max(voiceGain.gain.value, 0.0001), stopAt);
+          holdAudioParamValue(voiceGain.gain, stopAt, releaseHoldLevel);
           voiceGain.gain.exponentialRampToValueAtTime(0.0001, stopAt + safeRelease);
         } catch {
           // ignore fast release scheduling issues
         }
 
         try {
-          envelope.cancel?.(stopAt + safeRelease + 0.02);
+          const cancelPadding = instrument.id === "cello"
+            ? 0.34
+            : instrument.id === "violin"
+              ? 0.28
+              : 0.12;
+          envelope.cancel?.(stopAt + safeRelease + cancelPadding);
         } catch {
           // ignore envelope cancel issues
         }
@@ -3221,74 +3495,103 @@ function createMultiInstrumentVoice(toneContext, note, instrumentId = state.audi
     source.connect(mixer);
     extraSources.push(source);
 
-    switch (instrument.id) {
-      case "piano":
-        filter.type = "lowpass";
-        filter.frequency.setValueAtTime(4700, now);
-        filter.frequency.exponentialRampToValueAtTime(1900, now + 0.75);
-        filter.Q.value = 1.4;
-        addNoiseBurst({ type: "highpass", frequency: 2600, q: 0.75, peak: 0.01, attack: 0.003, decay: 0.04, duration: 0.16 });
-        voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.052, toneLevel * 1.45), now + 0.008);
-        voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.015, toneLevel * 0.42), now + 0.16);
-        voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.5);
-        releaseSeconds = 0.75;
-        autoStopAfter = 1.52;
-        break;
-      case "violin":
-        filter.type = "lowpass";
-        filter.frequency.setValueAtTime(3600, now);
-        filter.frequency.exponentialRampToValueAtTime(2600, now + 0.58);
-        filter.Q.value = 2.1;
-        addPlaybackVibrato(source.playbackRate, 5.1, 0.007);
-        addBreathNoise(0.0045, Math.max(900, note.freq * 3.1));
-        addAmbienceSend(0.16, 0.072, 0.1);
-        voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.04, toneLevel * 1.12), now + 0.018);
-        voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.031, toneLevel * (options.sustain ? 0.99 : 0.94)), now + 0.12);
-        if (!options.sustain) {
-          voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + 2.22);
-        }
-        releaseSeconds = options.sustain ? 0.78 : 0.58;
-        autoStopAfter = options.sustain ? 0 : 2.26;
-        break;
-      case "panflute":
-        filter.type = "bandpass";
-        filter.frequency.setValueAtTime(1650, now);
-        filter.Q.value = 1.6;
-        addPlaybackVibrato(source.playbackRate, 4.0, 0.0024);
-        addBreathNoise(0.0055, Math.max(960, note.freq * 4.6));
-        addAmbienceSend(0.08, 0.03, 0.05);
-        voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.092, toneLevel * 2.65), now + 0.028);
-        voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.04, toneLevel * (options.sustain ? 1.34 : 1.08)), now + 0.24);
-        if (!options.sustain) {
-          voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.35);
-        }
-        releaseSeconds = options.sustain ? 0.58 : 0.72;
-        autoStopAfter = options.sustain ? 0 : 1.4;
-        break;
-      case "celestialguitar":
-        filter.type = "lowpass";
-        filter.frequency.setValueAtTime(3600, now);
-        filter.frequency.exponentialRampToValueAtTime(1750, now + 0.95);
-        filter.Q.value = 1.1;
-        addAmbienceSend(0.2, 0.05, 0.12);
-        voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.094, toneLevel * 2.6), now + 0.01);
-        voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.032, toneLevel * 0.96), now + 0.26);
-        voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + 2.35);
-        releaseSeconds = 0.76;
-        autoStopAfter = 2.38;
-        break;
-      case "triangle":
-      default:
-        filter.type = "highpass";
-        filter.frequency.setValueAtTime(1800, now);
-        filter.Q.value = 0.9;
-        addNoiseBurst({ type: "bandpass", frequency: 4200, q: 4.8, peak: 0.008, attack: 0.003, decay: 0.1, duration: 0.22 });
-        voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.04, toneLevel * 1.18), now + 0.006);
-        voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.01, toneLevel * 0.2), now + 0.28);
-        voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.95);
-        releaseSeconds = 1.06;
-        autoStopAfter = 1.96;
-        break;
+    if (isSkyNightlyInstrument(instrument.id)) {
+      const profile = getSkyNightlyInstrumentProfile(instrument);
+      filter.type = profile.filterType;
+      filter.frequency.setValueAtTime(profile.filterFrequency, now);
+      filter.Q.value = profile.filterQ;
+
+      if (profile.ambienceAmount > 0) {
+        addAmbienceSend(profile.ambienceAmount, profile.ambienceDelay, profile.ambienceFeedback);
+      }
+
+      voiceGain.gain.setValueAtTime(0.0001, now);
+      voiceGain.gain.exponentialRampToValueAtTime(profile.peakGain, now + profile.attackSeconds);
+      voiceGain.gain.exponentialRampToValueAtTime(profile.sustainGain, now + Math.max(0.11, profile.attackSeconds + 0.08));
+
+      const shouldKeepHolding = Boolean(options.sustain && source.loop);
+      releaseSeconds = profile.releaseSeconds;
+      releaseHoldLevel = Math.max(0.06, Number(profile.sustainGain || 0.08));
+
+      if (shouldKeepHolding) {
+        autoStopAfter = 0;
+      } else {
+        const bufferDuration = Number(sampleEntry.buffer?.duration || 1.6);
+        const fadeAt = Math.max(0.45, Math.min(bufferDuration + 0.18, profile.autoStopAfter));
+        voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + fadeAt);
+        autoStopAfter = fadeAt + 0.08;
+      }
+    } else {
+      switch (instrument.id) {
+        case "piano":
+          filter.type = "lowpass";
+          filter.frequency.setValueAtTime(4700, now);
+          filter.frequency.exponentialRampToValueAtTime(1900, now + 0.75);
+          filter.Q.value = 1.4;
+          addNoiseBurst({ type: "highpass", frequency: 2600, q: 0.75, peak: 0.01, attack: 0.003, decay: 0.04, duration: 0.16 });
+          voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.052, toneLevel * 1.45), now + 0.008);
+          voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.015, toneLevel * 0.42), now + 0.16);
+          voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.5);
+          releaseSeconds = 0.75;
+          autoStopAfter = 1.52;
+          break;
+        case "violin":
+          filter.type = "lowpass";
+          filter.frequency.setValueAtTime(3600, now);
+          filter.frequency.exponentialRampToValueAtTime(2600, now + 0.58);
+          filter.Q.value = 2.1;
+          addPlaybackVibrato(source.playbackRate, 5.1, 0.007);
+          addBreathNoise(0.0045, Math.max(900, note.freq * 3.1));
+          addAmbienceSend(0.16, 0.072, 0.1);
+          voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.04, toneLevel * 1.12), now + 0.018);
+          releaseHoldLevel = Math.max(0.031, toneLevel * (options.sustain ? 0.99 : 0.94));
+          voiceGain.gain.exponentialRampToValueAtTime(releaseHoldLevel, now + 0.12);
+          if (!options.sustain) {
+            voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + 2.22);
+          }
+          releaseSeconds = options.sustain ? 0.78 : 0.58;
+          autoStopAfter = options.sustain ? 0 : 2.26;
+          break;
+        case "panflute":
+          filter.type = "bandpass";
+          filter.frequency.setValueAtTime(1650, now);
+          filter.Q.value = 1.6;
+          addPlaybackVibrato(source.playbackRate, 4.0, 0.0024);
+          addBreathNoise(0.0055, Math.max(960, note.freq * 4.6));
+          addAmbienceSend(0.08, 0.03, 0.05);
+          voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.092, toneLevel * 2.65), now + 0.028);
+          voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.04, toneLevel * (options.sustain ? 1.34 : 1.08)), now + 0.24);
+          if (!options.sustain) {
+            voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.35);
+          }
+          releaseSeconds = options.sustain ? 0.58 : 0.72;
+          autoStopAfter = options.sustain ? 0 : 1.4;
+          break;
+        case "celestialguitar":
+          filter.type = "lowpass";
+          filter.frequency.setValueAtTime(3600, now);
+          filter.frequency.exponentialRampToValueAtTime(1750, now + 0.95);
+          filter.Q.value = 1.1;
+          addAmbienceSend(0.2, 0.05, 0.12);
+          voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.094, toneLevel * 2.6), now + 0.01);
+          voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.032, toneLevel * 0.96), now + 0.26);
+          voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + 2.35);
+          releaseSeconds = 0.76;
+          autoStopAfter = 2.38;
+          break;
+        case "triangle":
+        default:
+          filter.type = "highpass";
+          filter.frequency.setValueAtTime(1800, now);
+          filter.Q.value = 0.9;
+          addNoiseBurst({ type: "bandpass", frequency: 4200, q: 4.8, peak: 0.008, attack: 0.003, decay: 0.1, duration: 0.22 });
+          voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.04, toneLevel * 1.18), now + 0.006);
+          voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.01, toneLevel * 0.2), now + 0.28);
+          voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.95);
+          releaseSeconds = 1.06;
+          autoStopAfter = 1.96;
+          break;
+      }
     }
 
     source.start(now);
@@ -3302,16 +3605,16 @@ function createMultiInstrumentVoice(toneContext, note, instrumentId = state.audi
       const safeRelease = Math.max(0.05, Number(overrideRelease || releaseSeconds));
 
       try {
-        voiceGain.gain.cancelScheduledValues(stopAt);
-        voiceGain.gain.setValueAtTime(Math.max(voiceGain.gain.value, 0.0001), stopAt);
+        holdAudioParamValue(voiceGain.gain, stopAt, releaseHoldLevel);
         voiceGain.gain.exponentialRampToValueAtTime(0.0001, stopAt + safeRelease);
       } catch {
         // ignore fast release scheduling issues
       }
 
+      const tailPadding = isSkyNightlyInstrument(instrument.id) ? 0.42 : 0.12;
       extraSources.forEach((node) => {
         try {
-          node.stop(stopAt + safeRelease + 0.08);
+          node.stop(stopAt + safeRelease + tailPadding);
         } catch {
           // source may already be stopped
         }
@@ -3342,7 +3645,8 @@ function createMultiInstrumentVoice(toneContext, note, instrumentId = state.audi
       filter.frequency.exponentialRampToValueAtTime(1800, now + 0.7);
       filter.Q.value = 1.6;
       voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.05, toneLevel * 1.5), now + 0.006);
-      voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.016, toneLevel * 0.44), now + 0.14);
+      releaseHoldLevel = Math.max(0.016, toneLevel * 0.44);
+      voiceGain.gain.exponentialRampToValueAtTime(releaseHoldLevel, now + 0.14);
       voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.45);
       releaseSeconds = 0.72;
       autoStopAfter = 1.48;
@@ -3359,7 +3663,8 @@ function createMultiInstrumentVoice(toneContext, note, instrumentId = state.audi
       filter.frequency.exponentialRampToValueAtTime(2250, now + 0.7);
       filter.Q.value = 1.45;
       voiceGain.gain.linearRampToValueAtTime(Math.max(0.04, toneLevel * 1.12), now + 0.02);
-      voiceGain.gain.linearRampToValueAtTime(Math.max(0.031, toneLevel * (options.sustain ? 0.98 : 0.94)), now + 0.11);
+      releaseHoldLevel = Math.max(0.031, toneLevel * (options.sustain ? 0.98 : 0.94));
+      voiceGain.gain.linearRampToValueAtTime(releaseHoldLevel, now + 0.11);
       if (!options.sustain) {
         voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + 2.28);
       }
@@ -3367,7 +3672,27 @@ function createMultiInstrumentVoice(toneContext, note, instrumentId = state.audi
       autoStopAfter = options.sustain ? 0 : 2.22;
       break;
     }
-    case "panflute": {
+    case "cello": {
+      const body = addOscillator([1, 0.84, 0.55, 0.31, 0.16], note.freq * 0.5, 0.22, -2.2);
+      const warm = addOscillator([1, 0.6, 0.32, 0.16], note.freq, 0.16, 1.6);
+      addOscillator("sine", note.freq * 0.5, 0.07);
+      addBreathNoise(0.0032, Math.max(720, note.freq * 2.3));
+      addVibrato([body, warm], 4.45, Math.max(0.45, note.freq * 0.0011));
+      addAmbienceSend(0.28, 0.076, 0.1);
+      filter.type = "lowpass";
+      filter.frequency.setValueAtTime(2400, now);
+      filter.frequency.exponentialRampToValueAtTime(1600, now + 0.92);
+      filter.Q.value = 1.05;
+      voiceGain.gain.linearRampToValueAtTime(Math.max(0.032, toneLevel * 0.78), now + 0.03);
+      releaseHoldLevel = Math.max(0.022, toneLevel * (options.sustain ? 0.56 : 0.48));
+      voiceGain.gain.linearRampToValueAtTime(releaseHoldLevel, now + 0.16);
+      if (!options.sustain) {
+        voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + 2.8);
+      }
+      releaseSeconds = options.sustain ? 1.15 : 0.95;
+      autoStopAfter = options.sustain ? 0 : 2.85;
+      break;
+    }    case "panflute": {
       const main = addOscillator("sine", note.freq, 0.72);
       const overtone = addOscillator("sine", note.freq * 2, 0.11);
       addOscillator([1, 0.1, 0.025], note.freq, 0.12, 2.5);
@@ -3459,16 +3784,17 @@ function createMultiInstrumentVoice(toneContext, note, instrumentId = state.audi
     const safeRelease = Math.max(0.05, Number(overrideRelease || releaseSeconds));
 
     try {
-      voiceGain.gain.cancelScheduledValues(stopAt);
-      voiceGain.gain.setValueAtTime(Math.max(voiceGain.gain.value, 0.0001), stopAt);
+      holdAudioParamValue(voiceGain.gain, stopAt, releaseHoldLevel);
       voiceGain.gain.exponentialRampToValueAtTime(0.0001, stopAt + safeRelease);
     } catch {
       // ignore fast release scheduling issues
     }
 
+    const tailPadding = isSkyNightlyInstrument(instrument.id) ? 0.42 : 0.2;
+
     oscillators.forEach(({ node }) => {
       try {
-        node.stop(stopAt + safeRelease + 0.08);
+        node.stop(stopAt + safeRelease + tailPadding);
       } catch {
         // oscillator may already be stopped
       }
@@ -3476,7 +3802,7 @@ function createMultiInstrumentVoice(toneContext, note, instrumentId = state.audi
 
     extraSources.forEach((node) => {
       try {
-        node.stop(stopAt + safeRelease + 0.08);
+        node.stop(stopAt + safeRelease + tailPadding);
       } catch {
         // source may already be stopped
       }
@@ -3603,13 +3929,29 @@ function stopHeldMultiNote(voiceId, shouldBroadcast = false) {
   }
 
   try {
+    const instrumentId = String(activeVoice?.instrumentId || "");
+    const isNightly = isSkyNightlyInstrument(instrumentId);
+    const isAurora = instrumentId === "sky-aurora" || instrumentId === "sky-aurora-short";
+    const isAiry = ["panflute", "ocarina", "sky-flute", "sky-panflute", "sky-ocarina", "sky-mantaocarina", "sky-horn", "sky-trumpet"].includes(instrumentId);
+    const isStringLead = instrumentId === "violin" || instrumentId === "cello";
+
     const releaseTime = activeVoice?.isRemote
-      ? (activeVoice?.instrumentId === "violin" ? 0.22 : 0.16)
-      : activeVoice?.instrumentId === "violin"
-        ? 0.62
-        : (activeVoice?.instrumentId === "panflute" || activeVoice?.instrumentId === "ocarina")
-          ? 0.34
-          : 0.18;
+      ? isAurora
+        ? 0.9
+        : isNightly
+          ? (isAiry ? 0.58 : 0.44)
+          : isStringLead
+            ? (instrumentId === "cello" ? 0.52 : 0.44)
+            : 0.3
+      : isAurora
+        ? 1.45
+        : isNightly
+          ? (isAiry ? 0.92 : 0.72)
+          : isStringLead
+            ? (instrumentId === "cello" ? 1.12 : 0.96)
+            : (instrumentId === "panflute" || instrumentId === "ocarina")
+              ? 0.7
+              : 0.56;
     activeVoice?.stop?.(releaseTime);
   } catch {
     // ignore stop errors for already released voices
@@ -4233,6 +4575,7 @@ function renderSkyKeyboardInto(grid) {
 }
 
 function renderSkyPiano() {
+  renderMultiInstrumentMenu();
   renderSkyKeyboardInto(el.skyPianoGrid);
   renderSkyKeyboardInto(el.studioPianoGrid);
   updateMultiInstrumentButtons();
@@ -4248,7 +4591,7 @@ function toggleStudioPiano(forceOpen) {
   el.btnToggleStudioPiano.textContent = shouldOpen ? "Masquer instruments & clavier" : "Instruments & clavier";
 
   if (shouldOpen) {
-    MULTI_INSTRUMENTS.forEach((entry) => warmupMultiInstrumentSample(entry.id));
+    warmupMultiInstrumentSample(getCurrentMultiInstrument().id);
     renderSkyPiano();
     setStudioStatus(`Studio prêt : ${getCurrentMultiInstrument().label}. Enregistre quand tu veux.`);
   }
@@ -4264,7 +4607,7 @@ function toggleSkyPiano(forceOpen) {
   el.btnToggleSkyPiano.textContent = shouldOpen ? "Fermer la musique" : "Musique";
 
   if (shouldOpen) {
-    MULTI_INSTRUMENTS.forEach((entry) => warmupMultiInstrumentSample(entry.id));
+    warmupMultiInstrumentSample(getCurrentMultiInstrument().id);
     renderSkyPiano();
     updateSkyPianoMobileHint();
     requestSkyPianoLandscape();
@@ -4488,21 +4831,17 @@ function setupMusicScreen() {
     toggleMultiInstrumentMenu();
   });
 
-  el.multiInstrumentMenu?.addEventListener("click", (event) => {
-    if (!event.target.closest("[data-multi-instrument]")) {
-      event.preventDefault();
-      event.stopPropagation();
-      toggleMultiInstrumentMenu(false);
-    }
-  });
+  const handleInstrumentSelectionClick = (event) => {
+    const button = event.target.closest("[data-multi-instrument]");
+    if (!button) return;
 
-  Array.from(el.multiInstrumentButtons || []).forEach((button) => {
-    button.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      setMultiInstrument(button.dataset.multiInstrument);
-    });
-  });
+    event.preventDefault();
+    event.stopPropagation();
+    setMultiInstrument(button.dataset.multiInstrument);
+  };
+
+  el.multiInstrumentMenu?.addEventListener("click", handleInstrumentSelectionClick);
+  el.studioInstrumentRow?.addEventListener("click", handleInstrumentSelectionClick);
 
   document.addEventListener("pointerdown", (event) => {
     if (!el.multiInstrumentPicker?.contains(event.target)) {
