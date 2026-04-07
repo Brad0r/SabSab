@@ -4356,11 +4356,9 @@ async function requestSkyPianoLandscape() {
   document.body.classList.add("sky-piano-open");
 
   try {
-    if (!document.fullscreenElement && el.skyPianoPanel.requestFullscreen) {
-      await el.skyPianoPanel.requestFullscreen();
-    }
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   } catch {
-    // fullscreen can be refused on some mobile browsers
+    window.scrollTo(0, 0);
   }
 
   try {
